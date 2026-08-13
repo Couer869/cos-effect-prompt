@@ -1,0 +1,8 @@
+# 评估工作区（不纳入仓库）
+*-workspace/
+iteration-*/
+
+# 临时与系统文件
+.DS_Store
+Thumbs.db
+*.log
