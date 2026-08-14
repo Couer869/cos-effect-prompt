@@ -109,6 +109,26 @@ Skill 输出：
 
 只输出**你需要的模块**——没有多余的键，直接复制即用。
 
+### 📥 导入插件（预设格式）
+
+输出可直接导入图像处理插件，信封结构：
+
+```json
+{
+  "id": "f_special_gold-magic-circle",
+  "title": "脚下加金色魔法阵",
+  "content": "{\"role\":\"Cosplay人像后期综合处理师\",...}",
+  "category": "special",
+  "subCategory": "",
+  "refImages": [],
+  "_isFactory": true
+}
+```
+
+- `content`：完整指令 JSON（转义字符串），解包后可直接粘贴 Nano Banana
+- `category`：英文分类（`special` / `face` / `hair` / `clothing` / `body` / `wind` / `scene` / `color` / `background` / `lighting`）
+- `id` / `title`：语义化建议值，导入插件后可自行修改
+
 ---
 
 ## 💡 设计理念

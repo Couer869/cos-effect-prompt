@@ -12,6 +12,8 @@ description: >
   用户**给出照片**并问「这个效果怎么做」「分析这张图的后期」「这张图用了什么修图/特效」
   「照着这张图做」「反推一下提示词」时，进入**反推模式**：观察照片、识别已有后期处理、
   反推出可复现的 JSON 指令。
+  输出格式为**可直接导入图像处理插件的预设 JSON**（信封结构：id/title/content/category/
+  subCategory/refImages/_isFactory），content 内是转义后的指令 JSON 字符串。
 ---
 
 # COS 后期提示词生成
@@ -20,12 +22,47 @@ description: >
 
 Nano Banana（Gemini 图像模型）吃的是自然语言指令，且它是语言模型——结构化 JSON 指令对它同样有效，甚至因为**无歧义**而更可靠：保底规则写清楚"什么不许动"，处理模块写清楚"改哪里、改成什么样"，约束兜底防止翻车。本技能的一切围绕"组装这份 JSON"展开。
 
-## 输出：JSON 指令（核心交付）
+## 输出：插件预设信封（核心交付）
 
-**固定骨架**：`role`、`base_rules`、`detection`、`constraints`、`integration` 总是出现。
-**按需启用**：`body_sculpting`（塑形）、`clothing_refresh`（服装）、`wind_effect`（风效）、`special_effects`（特效）——用户提了才加，没提就**不输出**该键。
+**输出一份可直接导入图像处理插件的预设 JSON**，信封结构如下：
 
-完整结构见 `references/template.json`。交付时输出完整可用的 JSON，用代码块包裹方便复制，不要省略字段，也不要加注释。
+```json
+{
+  "id": "f_special_gold-magic-circle",
+  "title": "脚下加金色魔法阵",
+  "content": "{\"role\":\"Cosplay人像后期综合处理师\",...}",
+  "category": "special",
+  "subCategory": "",
+  "refImages": [],
+  "_isFactory": true
+}
+```
+
+- **`content`**：组装好的指令 JSON（固定骨架 + 按需模块 + 约束 + 光影一致）**整体序列化为字符串**，内部引号转义为 `\"`。这份字符串就是可直接粘贴给 Nano Banana 的指令。
+- **`category`**：按**主要效果**映射英文分类（见下方分类表）
+- **`title`**：简短中文标题，概括主要操作（如"脚下加金色魔法阵""旗袍去白色打底"）
+- **`id`**：`f_<category>_<英文kebab-slug>`，语义化建议值（如 `f_special_gold-magic-circle`），导入插件时可按需改
+- **`subCategory`**：默认 `""`；**`refImages`**：`[]`；**`_isFactory`**：`true`
+
+完整信封示例见 `references/preset-envelope.json`；指令 JSON 的固定骨架与按需模块见 `references/template.json`。交付时输出完整可导入的预设 JSON，用代码块包裹。
+
+### 分类映射表
+
+| 主要效果 | category |
+|---|---|
+| 元素 / 魔法 / 光效类特效（魔法阵/火焰/雷电/翅膀/光环/粒子…） | `special` |
+| 场景类特效（雨/雪/花瓣/废墟/赛博街景/星空/古堡…） | `scene` |
+| 修脸（磨皮/瘦脸/眼睛/妆容…） | `face` |
+| 头发（光泽/亮晶晶/闪粉…） | `hair` |
+| 服装（面料/褶皱/瑕疵/污渍…） | `clothing` |
+| 塑形（瘦腰/液化…） | `body` |
+| 风效（裙摆/披风飘动…） | `wind` |
+| 调色 | `color` |
+| 换背景 | `background` |
+| 光影重塑 | `lighting` |
+| 其他 / 复合 | 取最主要效果的分类；归不了用 `other` |
+
+> **多模块请求**：`category` / `title` / `id` 都按**最主要效果**（通常最先提到或用户最在意的一个）确定，但 `content` 里仍包含所有启用的模块。
 
 ## 组装流程
 
@@ -100,9 +137,10 @@ Nano Banana（Gemini 图像模型）吃的是自然语言指令，且它是语�
 
 ### 第 5 步：校验与输出
 
-- 检查 JSON 键名拼写与参考模板完全一致
-- 每个启用的模块都有实质内容，不要输出空对象
-- 输出一份完整 JSON，代码块包裹
+- 组装好指令 JSON（即信封的 `content`）后，套入插件预设信封
+- 校验 `content` 内指令 JSON 键名与参考模板一致、每个启用模块都有实质内容
+- 校验信封 `id` / `title` / `category` 与主要效果匹配
+- 输出一份完整可导入的预设 JSON，代码块包裹
 
 ## 泛化模块组装（库中没有的需求）
 
@@ -161,7 +199,7 @@ Nano Banana（Gemini 图像模型）吃的是自然语言指令，且它是语�
 
 ### 第 3 步：反推复现指令
 
-输出 = **简短分析 + 复现 JSON 指令**。JSON 仍按主流程组装，`visual_description` / `blend` 写"照片里看到的效果长什么样"。
+输出 = **简短分析 + 复现指令（信封格式）**。指令 JSON 仍按主流程组装，`visual_description` / `blend` 写"照片里看到的效果长什么样"，然后整体套入插件预设信封（`content` 为转义字符串，`category` 按主要效果映射）。
 
 ```markdown
 ## 反推分析
@@ -172,16 +210,13 @@ Nano Banana（Gemini 图像模型）吃的是自然语言指令，且它是语�
 ## 复现指令
 ```json
 {
-  "role": "Cosplay人像后期综合处理师",
-  "base_rules": { "preserve_composition": true, "preserve_face": true, "preserve_pose": "不改变动作姿势", "no_scale_rotate_translate": true },
-  "special_effects": {
-    "style": "CG质感，建模画风……",
-    "effects": [
-      { "type": "魔法阵", "location": "脚下地面", "visual_description": "……照片里看到的效果……", "intensity": "中强", "blend": "……" }
-    ]
-  },
-  "constraints": { "严禁": "……", "禁止": "……" },
-  "integration": { "light_match": "所有修改区域光影一致", "noise_match": "噪点一致" }
+  "id": "f_special_gold-magic-circle",
+  "title": "复现：脚下金色魔法阵",
+  "content": "{\"role\":\"Cosplay人像后期综合处理师\",\"base_rules\":{...},\"special_effects\":{\"effects\":[...]},\"constraints\":{...},\"integration\":{...}}",
+  "category": "special",
+  "subCategory": "",
+  "refImages": [],
+  "_isFactory": true
 }
 ```
 ```
@@ -208,5 +243,6 @@ Nano Banana（Gemini 图像模型）吃的是自然语言指令，且它是语�
 - 特效怎么写 → `references/effects.md`（四大类 28 种特效，含视觉描述 / 融入写法 / 强度词 / 变体）
 - 修脸 / 亮晶晶头发 / 服装瑕疵 → `references/portrait.md`（含现成 JSON 值、严格项、组合示例）
 - 库中没有的需求 → `references/fallback.md`（泛化模块：调色/背景更换/光影重塑/去路人）
+- 插件预设信封示例 → `references/preset-envelope.json`
 - 完整 JSON 骨架 → `references/template.json`
 - Nano Banana 编辑原理与摄影术语 → `references/nano-banana.md`
