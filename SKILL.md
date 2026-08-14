@@ -14,6 +14,10 @@ description: >
   反推出可复现的 JSON 指令。
   输出格式为**可直接导入图像处理插件的预设 JSON**（信封结构：id/title/content/category/
   subCategory/refImages/_isFactory），content 内是转义后的指令 JSON 字符串。
+  用户提到「MJ 风格 / Midjourney / 二次元 / 动漫 / 日系 / 原画 / 官方立绘 / 厚涂 / 手绘 /
+  赛博朋克 / 霓虹 / 电影感 / 大片质感 / 梦幻 / 仙气 / 写实 / 极简 / 高级感」等任何**画面风格**
+  需求，或提到「插件预设 / 导入插件 / 预设格式 / 提示词模板」时，也务必使用本技能——内置
+  MJ 风格知识库，能把风格需求转译成可执行的指令措辞。
 ---
 
 # COS 后期提示词生成
@@ -143,6 +147,17 @@ Nano Banana（Gemini 图像模型）吃的是自然语言指令，且它是语�
 - 输出一份完整可导入的预设 JSON，代码块包裹（展示）
 - **保存交付文件**：把完整信封写入 `<id>.json`（如 `f_special_gold-magic-circle.json`），保存到**用户的下载目录（Downloads）**——Windows 默认 `C:\Users\<用户名>\Downloads`，macOS / Linux 为 `~/Downloads`；无法确定时询问用户或保存到用户指定位置。保存后在回复中给出文件路径；若环境提供 artifact 报告工具（如 `report_artifacts`），用它声明该文件，让用户可直接下载
 
+## 风格处理（MJ 等审美风格）
+
+用户提到某种**画面风格**（MJ 风格 / 二次元 / 动漫 / 厚涂 / 赛博朋克 / 电影感 / 梦幻 / 写实 / 极简…）时，从 `references/mj-style.md` 取措辞，按下面位置注入：
+
+1. **特效** → 写入 `special_effects.style`（覆盖默认 CG 质感，或与 CG 并列叠加）
+2. **整体画面** → 在 `content` 里加一句风格定调，或写进相关模块的 `blend`
+3. **修图** → 写进 `face_retouch` / `hair_enhancement` 的质感描述
+4. **MJ 参数** → 用户提到 `--ar` / `--v` / `--stylize` / `--no` 等时，按 mj-style.md 的「参数 → 指令等价」表转译成描述性语句，不输出 MJ 参数本身
+
+**判断标准**：用户说出风格词，就启用风格处理；没说就用默认（特效 CG 质感，修图自然档）。
+
 ## 泛化模块组装（库中没有的需求）
 
 知识库覆盖不了所有后期需求（调色、背景更换、光影重塑、去路人、加文字……）。**遇到库中没有的处理，不要拒绝、不要让人重述**——用下面的模板现造一个模块，质量与已知模块同一标准。
@@ -245,5 +260,6 @@ Nano Banana（Gemini 图像模型）吃的是自然语言指令，且它是语�
 - 修脸 / 亮晶晶头发 / 服装瑕疵 → `references/portrait.md`（含现成 JSON 值、严格项、组合示例）
 - 库中没有的需求 → `references/fallback.md`（泛化模块：调色/背景更换/光影重塑/去路人）
 - 插件预设信封示例 → `references/preset-envelope.json`
+- MJ 风格 / 二次元 / 厚涂 / 赛博 / 电影感 → `references/mj-style.md`（风格措辞 + 参数转译 + 触发词）
 - 完整 JSON 骨架 → `references/template.json`
 - Nano Banana 编辑原理与摄影术语 → `references/nano-banana.md`
