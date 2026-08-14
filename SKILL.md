@@ -140,7 +140,8 @@ Nano Banana（Gemini 图像模型）吃的是自然语言指令，且它是语�
 - 组装好指令 JSON（即信封的 `content`）后，套入插件预设信封
 - 校验 `content` 内指令 JSON 键名与参考模板一致、每个启用模块都有实质内容
 - 校验信封 `id` / `title` / `category` 与主要效果匹配
-- 输出一份完整可导入的预设 JSON，代码块包裹
+- 输出一份完整可导入的预设 JSON，代码块包裹（展示）
+- **保存交付文件**：把完整信封写入 `<id>.json`（如 `f_special_gold-magic-circle.json`），保存到当前工作目录或用户指定位置，并在回复中给出文件路径；若环境提供 artifact 报告工具（如 `report_artifacts`），用它声明该文件，让用户可直接下载
 
 ## 泛化模块组装（库中没有的需求）
 
