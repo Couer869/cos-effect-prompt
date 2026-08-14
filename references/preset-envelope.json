@@ -1,7 +1,12 @@
 {
   "id": "f_special_gold-magic-circle",
   "title": "脚下加金色魔法阵",
-  "content": "{\"role\":\"Cosplay人像后期综合处理师\",\"base_rules\":{\"preserve_composition\":true,\"preserve_face\":true,\"preserve_pose\":\"不改变动作姿势\",\"no_scale_rotate_translate\":true},\"detection\":{\"identify\":\"分析全身身材比例、服装类型和可移动部分(裙摆/披风/飘带)、头发长度方向\"},\"special_effects\":{\"style\":\"CG质感，建模画风：高精度3D渲染，表面平滑细腻、边缘清晰锐利，体积光与全局光照，类似高端游戏过场CG的特效表现\",\"effects\":[{\"type\":\"魔法阵\",\"location\":\"脚下地面\",\"visual_description\":\"脚下地面浮现一座金色发光魔法阵，繁复的几何图纹与神秘符文环绕旋转，符文线条柔和发光，CG高精度渲染质感\",\"intensity\":\"明显\",\"blend\":\"魔法阵光芒映照角色产生金色环境光，地面法阵保持正确俯视透视，与照片原有光源方向一致\"}]},\"constraints\":{\"严禁\":\"改变动作姿势、液化过度变形、背景出现变形、重绘人物本体(面部/服饰/体型)、特效光源方向与照片不一致\",\"禁止\":\"特效与人物光影方向冲突\"},\"integration\":{\"light_match\":\"所有修改区域光影一致\",\"noise_match\":\"噪点一致\"}}",
+  "content": "{\"role\":\"Cosplay人像后期综合处理师\",\"base_rules\":{\"preserve_composition\":true,\"preserve_face\":true,\"preserve_pose\":\"不改变动作姿势\",\"no_scale_rotate_translate\":true},\"detection\":{\"identify\":\"分析全身身材比例、服装类型和可移动部分(裙摆/披风/飘带)、头发长度方向\"},\"special_effects\":{\"style\":\"CG质感，建模画风：高精度3D渲染，表面平滑细腻、边缘清晰锐利，体积光与全局光照，类似高端游戏过场CG的特效表现\",\"effects\":[{\"type\":\"魔法阵\",\"location\":\"脚下地面\",\"visual_description\":\"脚下地面浮现一座金色发光魔法阵，繁复的几何图纹与神秘符文环绕旋转，符文线条柔和发光，CG高精度渲染质感\",\"intensity\":\"中\",\"blend\":\"魔法阵光芒映照角色产生金色环境光，地面法阵保持正确俯视透视，与照片原有光源方向一致\"}]},\"constraints\":{\"严禁\":\"改变动作姿势、液化过度变形、背景出现变形、重绘人物本体(面部/服饰/体型)、特效光源方向与照片不一致\",\"禁止\":\"特效与人物光影方向冲突\"},\"integration\":{\"light_match\":\"所有修改区域光影一致\",\"noise_match\":\"噪点一致\"}}",
+  "params": [
+    { "key": "intensity", "label": "特效强度", "type": "number", "min": 0, "max": 100, "default": 60, "step": 5, "target": "effects[].intensity" },
+    { "key": "style_weight", "label": "风格权重", "type": "number", "min": 0, "max": 100, "default": 50, "step": 5, "target": "style" },
+    { "key": "blend_strength", "label": "光影融入", "type": "number", "min": 0, "max": 100, "default": 60, "step": 5, "target": "blend" }
+  ],
   "category": "special",
   "subCategory": "",
   "refImages": [],

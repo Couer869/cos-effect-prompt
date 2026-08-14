@@ -35,6 +35,11 @@ Nano Banana（Gemini 图像模型）吃的是自然语言指令，且它是语�
   "id": "f_special_gold-magic-circle",
   "title": "脚下加金色魔法阵",
   "content": "{\"role\":\"Cosplay人像后期综合处理师\",...}",
+  "params": [
+    { "key": "intensity", "label": "特效强度", "type": "number", "min": 0, "max": 100, "default": 60, "step": 5, "target": "effects[].intensity" },
+    { "key": "style_weight", "label": "风格权重", "type": "number", "min": 0, "max": 100, "default": 50, "step": 5, "target": "style" },
+    { "key": "blend_strength", "label": "光影融入", "type": "number", "min": 0, "max": 100, "default": 60, "step": 5, "target": "blend" }
+  ],
   "category": "special",
   "subCategory": "",
   "refImages": [],
@@ -43,12 +48,26 @@ Nano Banana（Gemini 图像模型）吃的是自然语言指令，且它是语�
 ```
 
 - **`content`**：组装好的指令 JSON（固定骨架 + 按需模块 + 约束 + 光影一致）**整体序列化为字符串**，内部引号转义为 `\"`。这份字符串就是可直接粘贴给 Nano Banana 的指令。
+- **`params`**：**可调参数控件**，插件据此渲染滑块。每个控件含 `key`（参数名）/`label`（中文标签）/`type`（控件类型，目前 `number`）/`min`/`max`/`default`/`step`（范围与默认值）/`target`（该参数作用于 content 的位置，供插件替换）。
 - **`category`**：按**主要效果**映射英文分类（见下方分类表）
 - **`title`**：简短中文标题，概括主要操作（如"脚下加金色魔法阵""旗袍去白色打底"）
 - **`id`**：`f_<category>_<英文kebab-slug>`，语义化建议值（如 `f_special_gold-magic-circle`），导入插件时可按需改
 - **`subCategory`**：默认 `""`；**`refImages`**：`[]`；**`_isFactory`**：`true`
 
 完整信封示例见 `references/preset-envelope.json`；指令 JSON 的固定骨架与按需模块见 `references/template.json`。交付时输出完整可导入的预设 JSON，用代码块包裹。
+
+### 参数调节映射（params 如何影响 content）
+
+`params` 的**默认值已烘焙进 content**（未调节时可直接使用）；插件调节后按 `target` 替换对应部分。数值→措辞映射：
+
+| 参数 | 0-33 | 34-66 | 67-100 |
+|---|---|---|---|
+| `intensity`（特效强度） | 轻（克制） | 中（标准） | 强（强烈） |
+| `style_weight`（风格权重） | 克制写实 | 均衡 | 强烈风格化 |
+| `blend_strength`（光影融入） | 轻微融入 | 自然融入 | 强光影交互 |
+
+- 生成时默认值：`intensity=60`（中）、`style_weight=50`（均衡）、`blend_strength=60`（自然融入）
+- 用户明确说"强度高一点""梦幻感重一点"等 → 调整对应 `default`，content 同步用对应措辞
 
 ### 分类映射表
 
@@ -142,6 +161,7 @@ Nano Banana（Gemini 图像模型）吃的是自然语言指令，且它是语�
 ### 第 5 步：校验与输出
 
 - 组装好指令 JSON（即信封的 `content`）后，套入插件预设信封
+- 组装 `params` 控件：默认 `intensity` / `style_weight` / `blend_strength` 三个（按上方映射表）；用户明确指定过强度 / 风格 / 融入程度时，改对应 `default` 并让 content 同步用对应措辞
 - 校验 `content` 内指令 JSON 键名与参考模板一致、每个启用模块都有实质内容
 - 校验信封 `id` / `title` / `category` 与主要效果匹配
 - 输出一份完整可导入的预设 JSON，代码块包裹（展示）

@@ -118,6 +118,11 @@ Skill 输出：
   "id": "f_special_gold-magic-circle",
   "title": "脚下加金色魔法阵",
   "content": "{\"role\":\"Cosplay人像后期综合处理师\",...}",
+  "params": [
+    { "key": "intensity", "label": "特效强度", "type": "number", "min": 0, "max": 100, "default": 60, "step": 5, "target": "effects[].intensity" },
+    { "key": "style_weight", "label": "风格权重", "type": "number", "min": 0, "max": 100, "default": 50, "step": 5, "target": "style" },
+    { "key": "blend_strength", "label": "光影融入", "type": "number", "min": 0, "max": 100, "default": 60, "step": 5, "target": "blend" }
+  ],
   "category": "special",
   "subCategory": "",
   "refImages": [],
@@ -126,6 +131,7 @@ Skill 输出：
 ```
 
 - `content`：完整指令 JSON（转义字符串），解包后可直接粘贴 Nano Banana
+- `params`：**可调参数控件**（特效强度 / 风格权重 / 光影融入），插件可渲染滑块，默认值已烘焙进 content
 - `category`：英文分类（`special` / `face` / `hair` / `clothing` / `body` / `wind` / `scene` / `color` / `background` / `lighting`）
 - `id` / `title`：语义化建议值，导入插件后可自行修改
 
