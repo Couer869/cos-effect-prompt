@@ -60,6 +60,32 @@
 - 负面加：`bad anatomy`、`extra fingers`、`deformed`、`distorted`、`extra person`、`bad perspective`
 - 透视一致 → 负面 `bad perspective, wrong perspective`；正面可加 `correct perspective, proper vanishing point`
 
+### ComfyUI 进阶写法（ControlNet / LoRA / Embedding）
+
+用户提到「ControlNet / 控制网 / LORA / LoRA / embedding / 姿势控制 / 深度图」时启用。这些是 ComfyUI 的重要进阶能力，提示词要配合它们一起写。
+
+**LoRA / Embedding 语法**：
+- LoRA：`<lora:模型名:权重>`，如 `<lora:add_detail:0.8>`、`<lora:cosplay_style:0.6>`
+- Embedding：`embedding:embedding名` 或 `(embedding:名称:0.8)`
+- 用到 LoRA 就在提示词里声明，权重建议 0.5-0.8
+
+**ControlNet（精确控制姿势 / 构图 / 透视 / 结构）**：
+ControlNet 是控制图（预处理器），不是提示词；但提示词要配合描述。常见控制类型与配合写法：
+
+| 控制类型 | 作用 | 提示词配合写法 |
+|---|---|---|
+| OpenPose | 锁定人物姿势骨架 | 描述姿势 + "严格保持图中姿势骨架" |
+| Depth 深度 | 保持空间纵深与透视 | "保持透视与纵深关系"（配合透视一致硬规则） |
+| Lineart / Canny | 锁定线稿 / 边缘结构 | "保持边缘与线条结构" |
+| Normal 法线 | 保持体积与凹凸 | "保持体积与材质凹凸关系" |
+| IPAdapter | 参考图像风格 / 构图 | 描述参考风格 + "参考附图的风格与构图" |
+| Seg 语义分割 | 锁定物体区域布局 | "保持画面元素布局与区域" |
+
+**配合原则**：提示词负责"画面内容与风格"，ControlNet 负责"结构控制"。**姿势、透视这类硬约束在 ComfyUI 里优先交给 ControlNet（OpenPose / Depth）**，比纯提示词可靠得多。生成时提示：`使用 OpenPose 锁定姿势、Depth 保持透视`。
+
+**负面词库扩充**（追加到 negative_prompt）：
+`bad anatomy, extra fingers, deformed hands, missing fingers, extra limbs, disfigured, malformed, bad proportions, wrong perspective, bad perspective, duplicate, clone, watermark, text, logo`
+
 ## 三、Midjourney 输出格式
 
 自然语言描述 + `--参数`（MJ 具体风格措辞见 `mj-style.md`）：
