@@ -21,6 +21,10 @@ description: >
   用户问「这是什么风格 / 识别这张图的风格 / 分析画风 / 这个风格叫什么 / 这个风格怎么做」时，
   进入**风格识别**：对照风格库识别照片或描述的风格，输出可用的风格预设；用户提供**新风格**
   时，可**学习**入库（styles-learned.md），之后生成可直接调用。
+  用户提到「ComfyUI / Comfy / Stable Diffusion / SD / WebUI / 采样器 / CFG / 步数 / LoRA /
+  负面提示词 / Midjourney / --ar / NovelAI / 二次元 tag」等**模型或参数**时，**先辨别目标模型**，
+  再用该模型最合适的格式生成提示词（ComfyUI 用 tag+权重+参数，MJ 用自然语言+参数，
+  NovelAI 用 Danbooru 标签）；用户没说模型时默认 Nano Banana。
 ---
 
 # COS 后期提示词生成
@@ -30,6 +34,8 @@ description: >
 Nano Banana（Gemini 图像模型）吃的是自然语言指令，且它是语言模型——结构化 JSON 指令对它同样有效，甚至因为**无歧义**而更可靠：保底规则写清楚"什么不许动"，处理模块写清楚"改哪里、改成什么样"，约束兜底防止翻车。本技能的一切围绕"组装这份 JSON"展开。
 
 ## 输出：插件预设信封（核心交付）
+
+> 本节是 **Nano Banana（默认）** 的输出格式。若第 0 步辨别的模型是 ComfyUI / Midjourney / NovelAI，按 `references/models.md` 的对应格式输出，不套本信封。
 
 **输出一份可直接导入图像处理插件的预设 JSON**，信封结构如下：
 
@@ -91,6 +97,23 @@ Nano Banana（Gemini 图像模型）吃的是自然语言指令，且它是语�
 > **多模块请求**：`category` / `title` / `id` 都按**最主要效果**（通常最先提到或用户最在意的一个）确定，但 `content` 里仍包含所有启用的模块。
 
 ## 组装流程
+
+### 第 0 步：辨别目标模型
+
+**先确定这条提示词给哪个模型用**，再决定输出格式（详见 `references/models.md`）：
+
+- 用户**明说**：ComfyUI / SD / Stable Diffusion / WebUI → `comfyui`；MJ / Midjourney → `midjourney`；NovelAI / 二次元 tag → `novelai`；没提 → `nanobanana`
+- **术语暗示**：采样器 / CFG / 步数 / LoRA / 负面提示词 / checkpoint → `comfyui`；`--ar` / `--v` / `--stylize` → `midjourney`；tag / 标签 / Danbooru → `novelai`
+- **都没提** → 默认 `nanobanana`（插件预设信封）
+- 拿不准 → 问一次："这条提示词给 ComfyUI / Midjourney / NovelAI 还是 Nano Banana？"
+
+输出格式随模型变化：
+- `nanobanana` → 插件预设信封（见「输出」章节）
+- `comfyui` → 正向 tag + 负向 tag + 参数（CFG / 步数 / 采样器），特效 tag 对照见 `models.md`
+- `midjourney` → 自然语言 + `--参数`（风格措辞见 `mj-style.md`）
+- `novelai` → Danbooru 标签
+
+> 无论哪个模型，**保底规则 / 透视一致 / 光影一致**这些视觉质量要求都适用——只是表达方式不同（ComfyUI 写进正负 tag，MJ 写进自然语言，NovelAI 写进标签）。
 
 ### 第 1 步：识别模块
 
@@ -328,6 +351,7 @@ Nano Banana（Gemini 图像模型）吃的是自然语言指令，且它是语�
 - 修脸 / 亮晶晶头发 / 服装瑕疵 → `references/portrait.md`（含现成 JSON 值、严格项、组合示例）
 - 库中没有的需求 → `references/fallback.md`（泛化模块：调色/背景更换/光影重塑/去路人）
 - 插件预设信封示例 → `references/preset-envelope.json`
+- 多模型适配（ComfyUI / SD / MJ / NovelAI 格式 + 辨别 + tag 对照）→ `references/models.md`
 - MJ 风格 / 二次元 / 厚涂 / 赛博 / 电影感 → `references/mj-style.md`（风格措辞 + 参数转译 + 识别维度 + 触发词）
 - 已学习风格库（新风格入库处）→ `references/styles-learned.md`
 - 完整 JSON 骨架 → `references/template.json`
