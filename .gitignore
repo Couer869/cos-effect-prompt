@@ -6,3 +6,6 @@ iteration-*/
 .DS_Store
 Thumbs.db
 *.log
+
+# Office 临时文件
+~\$*.docx
