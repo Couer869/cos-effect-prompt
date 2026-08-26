@@ -36,6 +36,10 @@ description: >
   「服装材质 / 缎面 / 雪纺 / 皮革 / 蕾丝 / 金属 / C服还原」或「机械 / 藤蔓 / 全息 / 凤凰 /
   组合特效 / 打包」时，也务必使用本技能——知识库含 3D 素材整合、光影重塑、服装材质库、
   修容风格变体与 44 种特效 + 组合模板。
+  用户提到「体毛移除 / 肩颈优化 / 抹油 / 绷紧衣服 / 胸部扩大 / 腰部纤细 / 腹肌线条 /
+  刘海修整 / CG毛发 / 亮闪闪头发 / 长发飘动 / 头发优化」等**身体与毛发专项**需求时，
+  也务必使用本技能——知识库含身体综合修图（沙漏比例/体毛/勒肉）与头发专业措辞
+  （XGen / 各向异性高光 / 微闪钻 / 赛璐璐 / 吹风物理）。
 ---
 
 # COS 后期提示词生成
@@ -133,10 +137,10 @@ Nano Banana（Gemini 图像模型）吃的是自然语言指令，且它是语�
 | 用户说了… | 启用模块 |
 |---|---|
 | 魔法阵 / 火焰 / 雷电 / 翅膀 / 光环 / 辉光 / 粒子 / 雨 / 雪 / 花瓣 / 街景 / 机械 / 藤蔓 / 全息 / 凤凰 / 加光效 / 组合特效… | `special_effects` |
-| 瘦身 / 塑形 / 液化 / 身材修一下 / 收腰… | `body_sculpting` |
+| 瘦身 / 塑形 / 液化 / 身材 / 胸部 / 腰部 / 腹肌 / 肩颈 / 体毛移除 / 抹油… | `body_sculpting` |
 | 修脸 / 磨皮 / 美肤 / 瘦脸 / 眼睛 / 妆容 / 祛痘 / 祛瑕疵… | `face_retouch` |
-| 头发 / 发丝 / 亮晶晶 / 闪粉 / 光泽 / 发质… | `hair_enhancement` |
-| 衣服皱 / 面料 / 材质(缎面/雪纺/皮革/蕾丝/金属…) / 瑕疵 / 污渍 / C服还原… | `clothing_refresh` |
+| 头发 / 发丝 / 亮晶晶 / 闪粉 / 光泽 / 发质 / 刘海 / 飘发 / CG毛发… | `hair_enhancement` |
+| 衣服皱 / 面料 / 材质(缎面/雪纺/皮革/蕾丝/金属…) / 瑕疵 / 污渍 / C服还原 / 绷紧衣服 / 勒肉… | `clothing_refresh` |
 | 风效 / 裙摆飘起来 / 披风扬起 / 加风… | `wind_effect` |
 | 3D素材 / 道具模型 / 置入模型 / 武器融合 / 素材太假 / 悬浮感… | `3d_asset_integration` |
 | 重塑光影 / 打光 / 布光 / 逆光 / 侧光 / 色温 / 电影光… | `lighting_reshape` |
@@ -188,7 +192,7 @@ Nano Banana（Gemini 图像模型）吃的是自然语言指令，且它是语�
 
 **`lighting_reshape`（光影重塑）**：用户提到重塑光影 / 打光 / 布光 / 逆光 / 侧光 / 色温时启用。按 `references/lighting.md` 组装：布光方案（三点 / 逆光 / 侧光 / 顶光底光 / 环境光）+ 色温 + 光比 + `goal_description`。注意是"加法改光"——新光源为角色补光，但全图阴影高光随新光源统一重算，不用全局调色掩盖。
 
-**`body_sculpting` / `clothing_refresh` / `wind_effect`**：按用户需求填充，字段结构沿用参考模板（见 `references/template.json`）。塑形务必带 `background_fix`（液化导致的背景变形完全修复）。风效的 `direction` 要统一（与头发飘动方向一致）。
+**`body_sculpting` / `clothing_refresh` / `wind_effect`**：按用户需求填充，字段结构沿用参考模板（见 `references/template.json`）。塑形务必带 `background_fix`（液化导致的背景变形完全修复）。风效的 `direction` 要统一（与头发飘动方向一致）。身体专项（沙漏比例/胸部/腰部/腹肌/肩颈/体毛移除/抹油勒肉/绷紧衣服）的专业措辞见 `references/body-retouch.md`；头发超写实/亮闪闪/赛璐璐/吹风物理措辞见 `references/portrait.md`。
 
 ### 第 4 步：动态拼装 `constraints`
 
@@ -431,7 +435,8 @@ Nano Banana（Gemini 图像模型）吃的是自然语言指令，且它是语�
 ## 引用知识库
 
 - 特效怎么写 → `references/effects.md`（八大类 44 种特效 + 特效组合模板，含视觉描述 / 融入写法 / 强度词 / 变体）
-- 修脸 / 亮晶晶头发 / 服装瑕疵 / 修容风格 → `references/portrait.md`（含现成 JSON 值、严格项、组合示例）
+- 修脸 / 头发（超写实/亮闪闪/赛璐璐/吹风物理）/ 服装瑕疵 / 修容风格 → `references/portrait.md`（含现成 JSON 值、严格项、组合示例）
+- 身体专项（沙漏比例/胸部/腰部/腹肌/肩颈/体毛移除/抹油勒肉/绷紧衣服）→ `references/body-retouch.md`
 - 服装材质 / C服还原度 → `references/clothing-materials.md`
 - 光影重塑（三点布光 / 色温 / 光比）→ `references/lighting.md`
 - 3D素材整合（置入模型真实化融合）→ `references/3d-assets.md`
