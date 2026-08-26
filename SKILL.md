@@ -31,6 +31,9 @@ description: >
   用户提到「我画了箭头 / 红色画笔 / 画笔引导 / 按我画的方向 / 照着红笔标记 / 用画笔标了风向」
   时，启用**画笔引导**：以照片上红色画笔标记的方向 / 轨迹 / 区域作为风、发丝、裙摆飘动或特效
   方向的基准，生成对应模块的 brush_guidance。
+  用户提到「3D素材 / 道具模型 / 置入模型 / 素材太假 / 武器融合 / 悬浮感」或「面部精修 /
+  自然感修容 / 厚涂修容 / CG感修容」时，也务必使用本技能——知识库含 3D 素材整合（面数提升/
+  SSS/接触交互）与修容风格变体的专业措辞。
 ---
 
 # COS 后期提示词生成
@@ -133,6 +136,7 @@ Nano Banana（Gemini 图像模型）吃的是自然语言指令，且它是语�
 | 头发 / 发丝 / 亮晶晶 / 闪粉 / 光泽 / 发质… | `hair_enhancement` |
 | 衣服皱 / 面料 / 瑕疵 / 污渍 / 破损 / 起球 / 开线… | `clothing_refresh` |
 | 风效 / 裙摆飘起来 / 披风扬起 / 加风… | `wind_effect` |
+| 3D素材 / 道具模型 / 置入模型 / 武器融合 / 素材太假 / 悬浮感… | `3d_asset_integration` |
 
 用户没提任何模块（只说"帮我修一下这张图"）→ **先问一个关键问题**："想加特效（魔法阵/火焰/光效等）还是做综合修图（塑形/服装/风效）？"不要盲目默认。
 用户提了某个**已知表里没有**的处理（调色 / 背景更换 / 光影重塑 / 去路人 / 加文字…）→ **不要拒绝、不要让人重述**，直接进入「泛化模块组装」。
@@ -172,8 +176,11 @@ Nano Banana（Gemini 图像模型）吃的是自然语言指令，且它是语�
 
 **`face_retouch` / `hair_enhancement` / `clothing_refresh`**：从 `references/portrait.md` 取对应子项的 JSON 值（每个子项都给了现成的中文表述，直接选用）。只输出与用户需求相关的子项，用户没提的键就省略。例如用户只说"磨皮"就只给 `skin`，不要整模块都塞进去。
 - 修脸默认强度：用户没说就按"自然不失真"处理（轻-中档）
+- 修容风格：用户说"自然感 / 厚涂 / CG感修容"时，用 `references/portrait.md` 的「修容风格变体」措辞（含专业词：中性灰+高低频、catchlights、卧蚕、T区高光、韩式VFace 等）
 - 亮晶晶头发：默认给 `gloss` + `sparkle` 组合（光泽 + 闪粉），这是高频需求；用户说"别太闪"就去掉 `sparkle`
 - 服装瑕疵：`flaw_fix` 覆盖污渍/破损/脱线/五金件，按用户具体说的取舍
+
+**`3d_asset_integration`（3D素材整合）**：用户提到 3D 素材 / 道具模型 / 置入模型 / 素材太假时启用。按 `references/3d-assets.md` 组装：至高红线（只改素材本体、禁全局调色、保设计身份）+ 按需取用的 8 个子模块（面数提升 / 假法线转凹凸 / SSS / 光线匹配 / HSL / 接触交互 / 材质精度 / 框架锁定）。
 
 **`body_sculpting` / `clothing_refresh` / `wind_effect`**：按用户需求填充，字段结构沿用参考模板（见 `references/template.json`）。塑形务必带 `background_fix`（液化导致的背景变形完全修复）。风效的 `direction` 要统一（与头发飘动方向一致）。
 
@@ -418,7 +425,8 @@ Nano Banana（Gemini 图像模型）吃的是自然语言指令，且它是语�
 ## 引用知识库
 
 - 特效怎么写 → `references/effects.md`（四大类 28 种特效，含视觉描述 / 融入写法 / 强度词 / 变体）
-- 修脸 / 亮晶晶头发 / 服装瑕疵 → `references/portrait.md`（含现成 JSON 值、严格项、组合示例）
+- 修脸 / 亮晶晶头发 / 服装瑕疵 / 修容风格 → `references/portrait.md`（含现成 JSON 值、严格项、组合示例）
+- 3D素材整合（置入模型真实化融合）→ `references/3d-assets.md`
 - 库中没有的需求 → `references/fallback.md`（泛化模块：调色/背景更换/光影重塑/去路人）
 - 插件预设信封示例 → `references/preset-envelope.json`
 - 多模型适配（ComfyUI / SD / MJ / NovelAI 格式 + 辨别 + tag 对照）→ `references/models.md`

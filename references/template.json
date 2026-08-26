@@ -4,6 +4,9 @@
     "preserve_composition": true,
     "preserve_face": true,
     "preserve_pose": "不改变动作姿势",
+    "preserve_background": "背景保持不变",
+    "preserve_lighting_global": "全局光照、环境氛围、背景亮度保持不变",
+    "preserve_global_hsl_gamma": "不通过全局调色/压光/改色温来融合效果",
     "preserve_perspective": "保持照片原有透视关系（灭点方向/相机角度/景深）完全不变",
     "no_scale_rotate_translate": true
   },
@@ -65,7 +68,7 @@
     ]
   },
   "constraints": {
-    "严禁": "改变动作姿势、液化过度变形、背景出现变形、重绘人物本体(面部/服饰/体型)、特效光源方向与照片不一致、新增元素透视与照片不一致",
+    "严禁": "改变动作姿势、液化过度变形、背景出现变形、重绘人物本体(面部/服饰/体型)、特效光源方向与照片不一致、新增元素透视与照片不一致、全局调色/压光/改色温",
     "禁止": "过度磨皮失真、改变五官结构、闪粉溢出到面部或背景、破坏服装版型与图案、风效不自然或风向不统一"
   },
   "integration": {
