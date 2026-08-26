@@ -88,3 +88,35 @@ Danbooru 标签（逗号分隔），加权重：
 3. **都没有** → 默认 Nano Banana
 
 辨别后有疑问 → 问一次："这条提示词是给 ComfyUI / Midjourney / NovelAI 还是 Nano Banana？"
+
+## 六、画笔引导在各模型的表达
+
+画笔引导（红笔箭头/轨迹）怎么写进提示词，取决于**该模型能否看到标注图**：
+
+| 模型 | 能否看到红笔标注 | 表达方式 |
+|---|---|---|
+| **Nano Banana** | ✅ 能看到照片 + 标注 | 直接引用："以照片中红色箭头方向为基准"（见 SKILL.md 画笔引导章节） |
+| **ComfyUI / SD** | ❌ 通常看不到 | 用 tag / 描述词表达方向与动态 |
+| **Midjourney** | ❌ | 自然语言描述方向 |
+| **NovelAI** | ❌ | 方向性标签 + 动态描述 |
+
+> 原则：能看到标注的模型直接引用红笔；看不到的模型，把方向**翻译成文字/tag**（用户口述方向即可，如"风往画面左边吹"）。
+
+### ComfyUI / SD 表达
+- 方向 + 动态 tag：`wind, flowing hair, dress flutter, motion, dynamic`，方向用修饰词（`to the left` / `to the right` / `diagonal wind`）
+- 强调权重：`(wind:1.3), (flowing hair:1.2)`
+- 负面：`stiff hair, static hair, frozen motion, no motion`
+- 说明：tag 难以精确控制方向，更精确的方向需要 **ControlNet + 引导图**；提示词里给出方向性描述即可
+
+### Midjourney 表达
+自然语言直接写方向：
+```
+风从画面右侧吹向左侧，黑色风衣衣摆与发丝向左侧飘动，动态感 --ar 3:4 --v 6
+```
+
+### NovelAI 表达
+Danbooru 标签 + 动态描述：
+```
+1girl, wind, flowing hair, dress flutter, dynamic pose, motion lines, masterpiece, best quality
+```
+（方向精确控制弱，靠 `wind` + `flowing` + `motion lines` 表达动态）
