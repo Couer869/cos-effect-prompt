@@ -69,6 +69,54 @@
         </div>
       </section>
 
+      <!-- 视觉模型：仅「图生文」需要 -->
+      <section class="card">
+        <div class="card-head">
+          <span>视觉模型（图生文用，可选）</span>
+        </div>
+        <div class="hint" style="margin-top:0">
+          只有能「看图」的模型才能做图生文（qwen-vl-max、glm-4v-plus、gpt-4o、Qwen2.5-VL 等）。
+          三项都留空 = 复用上面的主配置（仅当主模型本身支持视觉时才可行）。
+        </div>
+
+        <label class="lbl">视觉接口地址</label>
+        <input id="visionBaseUrl" class="inp" placeholder="留空 = 用上面的接口地址" />
+
+        <label class="lbl">视觉 API Key</label>
+        <input id="visionApiKey" class="inp" type="password" placeholder="留空 = 用上面的 Key" />
+
+        <label class="lbl">视觉模型名</label>
+        <div class="field-row">
+          <input id="visionModel" class="inp" placeholder="如 qwen-vl-max / glm-4v-plus" />
+          <button id="btnFetchVisionModels" class="btn btn-sm">拉取模型</button>
+        </div>
+        <div id="visionModelList" class="opt-list opt-scroll hidden"></div>
+        <div id="visionHint" class="hint"></div>
+      </section>
+
+      <!-- 开源说明 + 作者主页 -->
+      <section class="card">
+        <div class="card-head">
+          <span>关于</span>
+        </div>
+        <div class="notice">
+          <div class="notice-title">开源说明</div>
+          <div>· 本项目开源，仓库：<b>Couer869/cos-effect-prompt</b>（MIT 许可，可自由使用、修改、分发）</div>
+          <div>· 采用 <b>UXP 面板插件</b>形式，直接放进 Photoshop 的 <b>Plug-ins</b> 目录即可使用</div>
+          <div>· <b>不内置任何密钥</b>，所有 Key 由使用者自己填写，只存本机</div>
+          <div>· 内置知识库源自 COS 人像后期提示词工程实践，持续更新</div>
+        </div>
+
+        <label class="lbl">作者抖音主页</label>
+        <div id="douyinUrl" class="link-box">https://v.douyin.com/dNeL4w9CUBs/</div>
+        <div class="row">
+          <button id="btnOpenDouyin" class="btn btn-sm">前往抖音主页</button>
+          <button id="btnCopyDouyin" class="btn btn-sm">复制链接</button>
+          <button id="btnOpenGithub" class="btn btn-sm btn-ghost">打开 GitHub</button>
+        </div>
+        <div id="linkStatus" class="status"></div>
+      </section>
+
       <button id="btnEnter" class="btn btn-primary btn-block">保存并进入 →</button>
       <div id="setupStatus" class="status"></div>
     </div>
@@ -82,6 +130,8 @@
         <div class="hdr-sub" id="cfgSummary">—</div>
         <div class="hdr-actions">
           <button id="btnKB" class="btn btn-sm">知识库</button>
+          <button id="btnLearn" class="btn btn-sm">学习库</button>
+          <button id="btnImg" class="btn btn-sm">图生文</button>
           <button id="btnNewChat" class="btn btn-sm">新对话</button>
           <button id="btnSettings" class="btn btn-sm btn-ghost">设置</button>
         </div>
@@ -188,6 +238,98 @@
           <div class="notice-title">说明</div>
           <div>· 保存后，每次「生成提示词」和「继续优化」都会自动把这段内容作为固定要求发给 AI</div>
           <div>· 内容只保存在你本机，不会上传到任何第三方</div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ============================================================
+         视图 4：学习库（投喂参考提示词，与生成功能联动）
+         ============================================================ -->
+    <div id="viewLearn" class="view hidden">
+      <header class="hdr">
+        <div class="hdr-title">学习库</div>
+        <div class="hdr-sub">投喂参考提示词，生成时自动带上让它模仿</div>
+        <div class="hdr-actions">
+          <button id="learnBack" class="btn btn-sm">返回</button>
+        </div>
+      </header>
+
+      <section class="card">
+        <div class="card-head">
+          <span>已投喂 <span id="learnCount" class="count">0</span></span>
+          <span class="card-actions">
+            <button id="learnToggle" class="btn btn-sm">生成时参考：开</button>
+          </span>
+        </div>
+        <div id="learnList" class="learn-list">
+          <div class="empty">还没有投喂内容</div>
+        </div>
+      </section>
+
+      <section class="card">
+        <label class="lbl">投喂新内容（粘贴你喜欢的提示词）</label>
+        <input id="learnTitle" class="inp" placeholder="起个名字，如「赛博夜景 MJ 样例」（可留空）" />
+        <textarea id="learnBody" class="ta ta-lg" rows="8"
+          placeholder="把提示词原文粘进来。&#10;多条之间用空行分隔，会一次投喂成多条。"></textarea>
+        <div class="row">
+          <button id="learnAdd" class="btn btn-primary">投喂</button>
+          <button id="learnClear" class="btn btn-ghost btn-sm">清空全部</button>
+        </div>
+        <div id="learnStatus" class="status"></div>
+
+        <div class="notice">
+          <div class="notice-title">和「知识库」的区别</div>
+          <div>· <b>知识库</b>放的是<b>规则</b>——「必须这样做」的固定要求，优先级最高</div>
+          <div>· <b>学习库</b>放的是<b>范例</b>——「照这个样子写」的参考样本，AI 模仿其结构、用词与风格</div>
+          <div>· 生成提示词、继续优化、图生文都会自动参考；顶部按钮可随时开关</div>
+          <div>· 内容只存你本机。投喂太多会挤占上下文，建议留 5-10 条最典型的</div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ============================================================
+         视图 5：图生文（需要视觉模型）
+         ============================================================ -->
+    <div id="viewImg" class="view hidden">
+      <header class="hdr">
+        <div class="hdr-title">图生文</div>
+        <div class="hdr-sub">导入图片，识别画面并反推出可复现的提示词</div>
+        <div class="hdr-actions">
+          <button id="imgBack" class="btn btn-sm">返回</button>
+        </div>
+      </header>
+
+      <section class="card">
+        <label class="lbl">图片</label>
+        <div class="field-row">
+          <input id="imgPath" class="inp" placeholder="点右侧「选择图片」" />
+          <button id="btnPickImage" class="btn btn-sm">选择图片</button>
+        </div>
+        <div id="imgPreview" class="img-preview empty">还没有选择图片</div>
+
+        <label class="lbl">识图要求</label>
+        <textarea id="imgPrompt" class="ta ta-lg" rows="6"
+          placeholder="例：反推出能复现这张图的提示词，重点写清构图、光线、镜头&#10;例：分析这张图的人物造型与服装细节，再给提示词&#10;例：照这张图的风格，写一段同风格的场景提示词"></textarea>
+
+        <label class="lbl">输出格式</label>
+        <div id="targetModelImg" class="opt-list">
+          <div class="opt active" data-value="nanobanana">Nano Banana</div>
+          <div class="opt" data-value="midjourney">Midjourney</div>
+          <div class="opt" data-value="comfyui">ComfyUI / SD</div>
+          <div class="opt" data-value="novelai">NovelAI</div>
+        </div>
+
+        <div class="row">
+          <button id="imgGen" class="btn btn-primary">识别并生成提示词</button>
+        </div>
+        <div id="imgStatus" class="status"></div>
+
+        <div class="notice">
+          <div class="notice-title">需要视觉模型</div>
+          <div>· 只有能「看图」的模型可用（qwen-vl-max、glm-4v-plus、gpt-4o、Qwen2.5-VL…）</div>
+          <div>· 在「设置 → 视觉模型」里可单独配一套地址 / Key / 模型名；留空则用主配置</div>
+          <div>· DeepSeek 等纯文本模型不支持看图，会直接报错</div>
+          <div>· 结果会写回主界面的结果区，可以直接继续优化、导出</div>
         </div>
       </section>
     </div>

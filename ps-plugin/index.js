@@ -15,6 +15,7 @@ let fs = null;
 let formats = null;
 let clipboard = null;
 let photoshop = null;
+let shell = null;
 
 try {
   const uxp = require("uxp");
@@ -22,17 +23,114 @@ try {
     fs = uxp.storage.localFileSystem;
     formats = uxp.storage.formats;
   }
-} catch (e) { /* 存储不可用：导出/另存降级 */ }
+  if (uxp && uxp.shell) shell = uxp.shell;
+} catch (e) { /* 存储/外壳不可用：导出、外链跳转降级 */ }
 
 try { clipboard = require("clipboard"); } catch (e) { /* 剪贴板不可用：走兜底 */ }
 try { photoshop = require("photoshop"); } catch (e) { /* 非 PS 环境 */ }
 
-/* 剪贴板：各版本 Photoshop 的 UXP 剪贴板权限差异太大（require("clipboard")
- * 可能不存在，navigator.clipboard 可能存在但没有写权限），复制按钮实际不可用，
- * 已从界面移除。需要取走内容请用「导出到目录 / 另存为…」，
- * 或点「编辑」进入 textarea 后用 Ctrl+A、Ctrl+C。
+/* ============================================================
+ * 复制文本 / 打开外部链接
  *
- * 这里保留 clipboard 的加载（上面 try/catch 那段）但不再对外暴露复制功能。 */
+ * 说明：结果区不再提供「复制」按钮——各版本 Photoshop 对 UXP 剪贴板
+ * API 的开放程度差别太大，生成内容又长，用户反馈实际用不了，已移除。
+ * 取走结果请用「导出到目录 / 另存为…」，或进编辑态 Ctrl+A、Ctrl+C。
+ *
+ * 这里保留一个复制实现，只服务于「复制链接」这种短文本场景
+ * （设置页的作者主页），每层都确认成功才返回，不会假报成功。
+ * ============================================================ */
+
+async function copyText(text) {
+  // 1) UXP 剪贴板模块
+  if (clipboard && typeof clipboard.copy === "function") {
+    try { clipboard.copy(text); return true; } catch (e) { /* 继续 */ }
+  }
+  // 2) 浏览器剪贴板：必须 await，无权限时会 reject
+  try {
+    if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (e) { /* 继续 */ }
+  // 3) execCommand 兜底
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    ta.style.top = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = !!(document.execCommand && document.execCommand("copy"));
+    document.body.removeChild(ta);
+    if (ok) return true;
+  } catch (e) { /* 继续 */ }
+  // 4) 选中链接文本，让用户自己 Ctrl+C
+  try {
+    const box = document.getElementById("douyinUrl");
+    if (box && window.getSelection && document.createRange) {
+      const r = document.createRange();
+      r.selectNodeContents(box);
+      const s = window.getSelection();
+      s.removeAllRanges();
+      s.addRange(r);
+    }
+  } catch (e) { /* 忽略 */ }
+  return false;
+}
+
+/* 用系统浏览器打开链接（UXP 的 shell.openExternal）。
+ * 失败时返回 false，调用方会提示用户手动复制链接。 */
+function openExternal(url) {
+  try {
+    if (shell && typeof shell.openExternal === "function") {
+      shell.openExternal(url);
+      return true;
+    }
+  } catch (e) { /* 降级 */ }
+  try {
+    if (typeof window !== "undefined" && typeof window.open === "function") {
+      window.open(url);
+      return true;
+    }
+  } catch (e) { /* 降级 */ }
+  return false;
+}
+
+/* 字节数组 -> base64。自己实现而不依赖 btoa/FileReader，
+ * 因为 UXP 对这两个的支持随版本变化，ArrayBuffer 是稳定拿得到的。 */
+const B64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+function bytesToBase64(bytes) {
+  let out = "";
+  const len = bytes.length;
+  let i = 0;
+  for (; i + 2 < len; i += 3) {
+    const n = (bytes[i] << 16) | (bytes[i + 1] << 8) | bytes[i + 2];
+    out += B64_CHARS[(n >> 18) & 63] + B64_CHARS[(n >> 12) & 63] +
+           B64_CHARS[(n >> 6) & 63] + B64_CHARS[n & 63];
+  }
+  const rest = len - i;
+  if (rest === 1) {
+    const n = bytes[i] << 16;
+    out += B64_CHARS[(n >> 18) & 63] + B64_CHARS[(n >> 12) & 63] + "==";
+  } else if (rest === 2) {
+    const n = (bytes[i] << 16) | (bytes[i + 1] << 8);
+    out += B64_CHARS[(n >> 18) & 63] + B64_CHARS[(n >> 12) & 63] +
+           B64_CHARS[(n >> 6) & 63] + "=";
+  }
+  return out;
+}
+
+function mimeOf(filename) {
+  const n = (filename || "").toLowerCase();
+  if (/\.png$/.test(n)) return "image/png";
+  if (/\.webp$/.test(n)) return "image/webp";
+  if (/\.gif$/.test(n)) return "image/gif";
+  if (/\.bmp$/.test(n)) return "image/bmp";
+  return "image/jpeg";
+}
 
 /* ============================================================
  * 一、内置技能知识（system prompt）
@@ -137,13 +235,57 @@ Danbooru 标签，逗号分隔，可用权重。
 负面固定：lowres, bad anatomy, bad hands, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, jpeg artifacts, signature, watermark, username, blurry
 `;
 
-function buildSystemPrompt(target, kb) {
-  let fmt = FORMAT_NANOBANANA;
-  if (target === "midjourney") fmt = FORMAT_MJ;
-  else if (target === "comfyui") fmt = FORMAT_COMFYUI;
-  else if (target === "novelai") fmt = FORMAT_NOVELAI;
+function formatFor(target) {
+  if (target === "midjourney") return FORMAT_MJ;
+  if (target === "comfyui") return FORMAT_COMFYUI;
+  if (target === "novelai") return FORMAT_NOVELAI;
+  return FORMAT_NANOBANANA;
+}
 
-  let s = SKILL_CORE + "\n" + fmt + `
+/* 知识库：用户写死的「固定要求」，优先级最高 */
+function kbBlock(kb) {
+  const k = (kb || "").trim();
+  if (!k) return "";
+  return `
+【用户知识库 · 固定要求（每次生成都必须遵守，优先级高于上文默认值）】
+${k}
+`;
+}
+
+/* 学习库：用户投喂的「参考范例」，模仿其结构、用词与风格。
+ * 按时间倒序取最新的若干条，并按总字数封顶——投喂太多会挤占上下文、
+ * 反而拖垮生成质量，所以这里做硬限制。 */
+const LEARN_CHAR_BUDGET = 6000;
+
+function learnBlock(learn) {
+  const items = learn || [];
+  if (!items.length || !isLearnOn()) return "";
+
+  let body = "";
+  let used = 0;
+  let n = 0;
+
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    const text = (it.body || "").trim();
+    if (!text) continue;
+    if (used + text.length > LEARN_CHAR_BUDGET) break;
+
+    n++;
+    used += text.length;
+    body += "\n--- 范例 " + n + (it.title ? "：" + it.title : "") + " ---\n" + text + "\n";
+  }
+
+  if (!n) return "";
+  return `
+【用户投喂的参考范例（共 ${n} 条）】
+下面是这位用户认可的提示词样例。请模仿它们的**结构、详细程度、用词习惯与风格取向**，
+但不要照抄内容——本次要写的是新东西。
+${body}`;
+}
+
+function buildSystemPrompt(target, kb) {
+  return SKILL_CORE + "\n" + formatFor(target) + `
 【工作方式】
 - 用户只描述需求时：直接生成提示词，不要反问（除非完全无从下手）
 - 用户给出照片并问"这是什么风格/怎么做的/照着做"时：进入反推模式——先给 3-5 条简短分析，再给可复现的提示词
@@ -151,18 +293,27 @@ function buildSystemPrompt(target, kb) {
   也不要输出 diff 或解释；保持与上一版相同的输出格式
 - 输出纯净可用，不要加多余的寒暄与解释
 - 只输出最终结果本身，不要包 markdown 代码块标记
-`;
+` + learnBlock(loadLearn()) + kbBlock(kb);
+}
 
-  // 注入用户知识库（固定要求）
-  const k = (kb || "").trim();
-  if (k) {
-    s += `
-【用户知识库 · 固定要求（每次生成都必须遵守，优先级高于上文默认值）】
-${k}
-`;
-  }
+/* 图生文：看图反推提示词。系统提示换一套，但格式/知识库/学习库照样生效。 */
+function buildVisionSystemPrompt(target, kb) {
+  return `你是资深的 AI 绘图提示词工程师，擅长看图反推提示词。
 
-  return s;
+【任务】
+用户会给你一张图片，外加一段识图要求。仔细分析画面，输出能复现这张图的提示词。
+
+【分析时要在心里过一遍（不要逐条罗列给用户）】
+主体与身份、服饰与材质、姿势与表情、构图与镜头（焦距 / 视角 / 景别）、
+光源方向与质感、色调与影调、环境与背景、前景元素、特效与氛围、
+画风与渲染方式（写实 / 3DCG / 插画 / 胶片…）
+
+【硬性要求】
+- 描述必须来自你实际看到的画面，**不要编造看不见的元素**
+- 保持原图的透视与构图关系（灭点方向、相机角度、景深关系）
+- 直接输出最终提示词，不要输出分析过程、不要输出"首先/然后"这类口语
+- 只输出结果本身，不要包 markdown 代码块标记
+` + formatFor(target) + learnBlock(loadLearn()) + kbBlock(kb);
 }
 
 /* ============================================================
@@ -172,7 +323,14 @@ ${k}
 const CFG_KEY = "cos_effect_prompt_cfg_v1";
 const HISTORY_KEY = "cos_effect_prompt_history_v1";
 const KB_KEY = "cos_effect_prompt_kb_v1";
+const LEARN_KEY = "cos_effect_prompt_learn_v1";
+const LEARN_ON_KEY = "cos_effect_prompt_learn_on_v1";
 const MAX_HISTORY = 30;
+const MAX_LEARN = 50;
+
+/* 开源与作者信息（写死在代码里，方便分发时统一） */
+const GITHUB_URL = "https://github.com/Couer869/cos-effect-prompt";
+const DOUYIN_URL = "https://v.douyin.com/dNeL4w9CUBs/";
 
 /* 服务商预设：选中后自动填入接口地址与常用模型名 */
 const PROVIDERS = {
@@ -209,6 +367,50 @@ function loadKB() {
 function saveKB(text) {
   try { localStorage.setItem(KB_KEY, text || ""); return true; }
   catch (e) { return false; }
+}
+
+/* ---------- 学习库：投喂的参考提示词 ---------- */
+
+function loadLearn() {
+  try {
+    const v = JSON.parse(localStorage.getItem(LEARN_KEY) || "[]");
+    return Array.isArray(v) ? v : [];
+  } catch (e) { return []; }
+}
+
+function persistLearn(list) {
+  try { localStorage.setItem(LEARN_KEY, JSON.stringify(list.slice(0, MAX_LEARN))); return true; }
+  catch (e) { return false; }
+}
+
+function isLearnOn() {
+  try { return localStorage.getItem(LEARN_ON_KEY) !== "0"; }  // 默认开
+  catch (e) { return true; }
+}
+
+function setLearnOn(on) {
+  try { localStorage.setItem(LEARN_ON_KEY, on ? "1" : "0"); } catch (e) { /* 忽略 */ }
+}
+
+/* 投喂：整段文本按空行切成多条，一次可以喂一批 */
+function addLearnBatch(title, body) {
+  const text = (body || "").trim();
+  if (!text) return 0;
+
+  const chunks = text.split(/\n\s*\n+/).map(function (s) { return s.trim(); }).filter(Boolean);
+  const list = loadLearn();
+  const t = nowStr();
+
+  chunks.forEach(function (c, i) {
+    list.unshift({
+      time: t,
+      title: (chunks.length === 1 && title ? title.trim() : "") || ("投喂 " + (i + 1)),
+      body: c
+    });
+  });
+
+  persistLearn(list);
+  return chunks.length;
 }
 
 /* ---------- 通用：选项组控件（UXP 下原生 select 不可靠） ---------- */
@@ -258,6 +460,9 @@ function readConfig() {
     baseUrl: document.getElementById("baseUrl").value.trim(),
     apiKey: document.getElementById("apiKey").value.trim(),
     model: document.getElementById("model").value.trim(),
+    visionBaseUrl: document.getElementById("visionBaseUrl").value.trim(),
+    visionApiKey: document.getElementById("visionApiKey").value.trim(),
+    visionModel: document.getElementById("visionModel").value.trim(),
     targetModel: currentTarget(),
     exportDir: document.getElementById("exportDir").value.trim()
   };
@@ -267,18 +472,35 @@ function fillConfigForm(cfg) {
   document.getElementById("baseUrl").value = cfg.baseUrl || "";
   document.getElementById("apiKey").value = cfg.apiKey || "";
   document.getElementById("model").value = cfg.model || "";
+  document.getElementById("visionBaseUrl").value = cfg.visionBaseUrl || "";
+  document.getElementById("visionApiKey").value = cfg.visionApiKey || "";
+  document.getElementById("visionModel").value = cfg.visionModel || "";
   document.getElementById("exportDir").value = cfg.exportDir || "";
   setOptValue("targetModel", cfg.targetModel || "nanobanana");
   setOptValue("targetModelMain", cfg.targetModel || "nanobanana");
+  setOptValue("targetModelImg", cfg.targetModel || "nanobanana");
+}
+
+/* 视觉模型配置：没单独配就回落到主配置 */
+function visionConfig() {
+  const c = loadConfig();
+  return {
+    baseUrl: (c.visionBaseUrl || c.baseUrl || "").trim(),
+    apiKey: (c.visionApiKey || c.apiKey || "").trim(),
+    model: (c.visionModel || "").trim()
+  };
 }
 
 function updateCfgSummary() {
   const cfg = loadConfig();
   const names = { nanobanana: "Nano Banana", midjourney: "Midjourney", comfyui: "ComfyUI", novelai: "NovelAI" };
   const t = currentTarget();
-  const kb = loadKB().trim();
+  const marks = [];
+  if (loadKB().trim()) marks.push("知识库");
+  if (loadLearn().length && isLearnOn()) marks.push("学习库" + loadLearn().length + "条");
   document.getElementById("cfgSummary").textContent =
-    (cfg.model || "未配置模型") + " · " + (names[t] || t) + (kb ? " · 知识库已启用" : "");
+    (cfg.model || "未配置模型") + " · " + (names[t] || t) +
+    (marks.length ? " · " + marks.join(" / ") + " 已启用" : "");
 }
 
 /* ============================================================
@@ -391,17 +613,28 @@ function scrollOutput(dir) {
  * ============================================================ */
 
 function showView(name) {
-  const views = ["viewSetup", "viewMain", "viewKB"];
+  const views = ["viewSetup", "viewMain", "viewKB", "viewLearn", "viewImg"];
   views.forEach(function (id) {
     const el = document.getElementById(id);
     if (!el) return;
     if (id === name) el.classList.remove("hidden");
     else el.classList.add("hidden");
   });
+
   if (name === "viewMain") { updateCfgSummary(); updateOutHint(); }
+
   if (name === "viewKB") {
     document.getElementById("kbText").value = loadKB();
     setKbStatus(loadKB().trim() ? "知识库已保存内容" : "知识库为空", "ok");
+  }
+
+  if (name === "viewLearn") {
+    renderLearn();
+    updateLearnToggle();
+  }
+
+  if (name === "viewImg") {
+    setImgStatus("", "");
   }
 }
 
@@ -507,6 +740,218 @@ function renderHistory() {
 }
 
 /* ============================================================
+ * 五之二、学习库（投喂参考提示词）
+ * ============================================================ */
+
+function setLearnStatus(msg, cls) {
+  const el = document.getElementById("learnStatus");
+  el.textContent = msg || "";
+  el.className = "status" + (cls ? " " + cls : "");
+}
+
+function updateLearnToggle() {
+  const btn = document.getElementById("learnToggle");
+  if (!btn) return;
+  const on = isLearnOn();
+  btn.textContent = "生成时参考：" + (on ? "开" : "关");
+  if (on) btn.classList.add("learn-toggle-on");
+  else btn.classList.remove("learn-toggle-on");
+}
+
+function renderLearn() {
+  const list = loadLearn();
+  const box = document.getElementById("learnList");
+  document.getElementById("learnCount").textContent = String(list.length);
+
+  while (box.firstChild) box.removeChild(box.firstChild);
+
+  if (!list.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "还没有投喂内容";
+    box.appendChild(empty);
+    return;
+  }
+
+  list.forEach(function (item, idx) {
+    const row = document.createElement("div");
+    row.className = "learn-item";
+
+    const main = document.createElement("div");
+    main.className = "learn-main";
+
+    const title = document.createElement("div");
+    title.className = "learn-title";
+    title.textContent = item.title || "(未命名)";
+
+    const body = document.createElement("div");
+    body.className = "learn-body";
+    const b = item.body || "";
+    body.textContent = b.length > 120 ? (b.slice(0, 120) + "…") : b;
+
+    const meta = document.createElement("div");
+    meta.className = "learn-meta";
+    meta.textContent = (item.time || "") + " · " + b.length + " 字";
+
+    main.appendChild(title);
+    main.appendChild(body);
+    main.appendChild(meta);
+
+    const del = document.createElement("span");
+    del.className = "learn-del";
+    del.textContent = "×";
+    del.addEventListener("click", function () {
+      const l = loadLearn();
+      l.splice(idx, 1);
+      persistLearn(l);
+      renderLearn();
+      updateCfgSummary();
+      setLearnStatus("已删除 1 条", "ok");
+    });
+
+    row.appendChild(main);
+    row.appendChild(del);
+    box.appendChild(row);
+  });
+}
+
+/* ============================================================
+ * 五之三、图生文（需要视觉模型）
+ * ============================================================ */
+
+let pickedImage = null;   // { name, dataUrl, base64, mime, bytes }
+
+const IMG_MAX_BYTES = 6 * 1024 * 1024;   // 超过就提醒，base64 后体积会再涨 ~33%
+
+function setImgStatus(msg, cls) {
+  const el = document.getElementById("imgStatus");
+  el.textContent = msg || "";
+  el.className = "status" + (cls ? " " + cls : "");
+}
+
+function clearPickedImage() {
+  pickedImage = null;
+  document.getElementById("imgPath").value = "";
+  const box = document.getElementById("imgPreview");
+  while (box.firstChild) box.removeChild(box.firstChild);
+  box.textContent = "还没有选择图片";
+  box.classList.add("empty");
+}
+
+async function pickImage() {
+  if (!fs || !fs.getFileForOpening) {
+    setImgStatus("当前环境不支持选择文件", "err");
+    return;
+  }
+
+  try {
+    const file = await fs.getFileForOpening({ types: ["jpg", "jpeg", "png", "webp"] });
+    if (!file) return;
+
+    const buf = await file.read({ format: formats.binary });
+    const bytes = new Uint8Array(buf);
+
+    if (!bytes.length) { setImgStatus("读取图片失败：文件为空", "err"); return; }
+
+    const mime = mimeOf(file.name);
+    const b64 = bytesToBase64(bytes);
+
+    pickedImage = {
+      name: file.name,
+      mime: mime,
+      base64: b64,
+      bytes: bytes.length,
+      dataUrl: "data:" + mime + ";base64," + b64
+    };
+
+    document.getElementById("imgPath").value = file.name;
+
+    // 预览：大图不渲染，避免面板卡住
+    const box = document.getElementById("imgPreview");
+    while (box.firstChild) box.removeChild(box.firstChild);
+    box.classList.remove("empty");
+
+    const kb = Math.round(bytes.length / 1024);
+    if (bytes.length > 3 * 1024 * 1024) {
+      box.textContent = file.name + "（" + kb + " KB，图太大不预览）";
+    } else {
+      try {
+        const img = document.createElement("img");
+        img.src = pickedImage.dataUrl;
+        box.appendChild(img);
+      } catch (e) {
+        box.textContent = file.name + "（" + kb + " KB）";
+      }
+    }
+
+    if (bytes.length > IMG_MAX_BYTES) {
+      setImgStatus("已选择：" + file.name + "（" + kb + " KB）—— 图片偏大，部分接口会拒绝，" +
+        "建议先压缩到 2MB 以内", "err");
+    } else {
+      setImgStatus("已选择：" + file.name + "（" + kb + " KB）", "ok");
+    }
+  } catch (e) {
+    setImgStatus("读取图片失败：" + e.message, "err");
+  }
+}
+
+async function runImageToText() {
+  if (!pickedImage) { setImgStatus("请先选择一张图片", "err"); return; }
+
+  const vc = visionConfig();
+  if (!vc.baseUrl || !vc.apiKey || !vc.model) {
+    setImgStatus("图生文需要视觉模型：请到「设置 → 视觉模型」填写，或把主模型换成支持看图的", "err");
+    return;
+  }
+
+  const ask = document.getElementById("imgPrompt").value.trim() ||
+    "反推出能复现这张图的提示词，写清构图、光线、镜头与画风。";
+
+  const target = getOptValue("targetModelImg") || "nanobanana";
+  const system = buildVisionSystemPrompt(target, loadKB());
+
+  const msgs = [{
+    role: "user",
+    content: [
+      { type: "text", text: ask },
+      { type: "image_url", image_url: { url: pickedImage.dataUrl } }
+    ]
+  }];
+
+  const btn = document.getElementById("imgGen");
+  btn.disabled = true;
+  setImgStatus("识别中…（图片较大时可能要十几秒）");
+
+  try {
+    const out = await callLLM(vc, msgs, system, 0.4);
+
+    // 结果写回主界面结果区，后续可继续优化 / 导出
+    setOutput(out);
+
+    // 优化链用纯文本重建：视觉消息留在历史里会让不支持看图的模型报错
+    messages = [
+      { role: "user", content: "（图生文）识图要求：" + ask + "\n\n已得到如下提示词，请在此基础上按我的后续要求修改。" },
+      { role: "assistant", content: out }
+    ];
+    outputStack = [out];
+
+    addHistory({
+      time: nowStr(),
+      target: target,
+      request: "【图生文】" + pickedImage.name,
+      result: out
+    });
+
+    showView("viewMain");
+    setStatus("图生文完成，结果已写入结果区（可继续优化或导出）", "ok");
+  } catch (e) {
+    setImgStatus("识别失败：" + e.message, "err");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ============================================================
  * 六、文件导出
  * ============================================================ */
 
@@ -566,17 +1011,36 @@ async function exportToDir() {
  * 七、拉取模型列表（OpenAI 兼容 GET /models）
  * ============================================================ */
 
-async function fetchModelsFromAPI() {
-  const base = document.getElementById("baseUrl").value.trim().replace(/\/+$/, "");
-  const key = document.getElementById("apiKey").value.trim();
-  const hint = document.getElementById("modelHint");
+/* 拉取模型列表。opt 用于区分「主模型」和「视觉模型」两套输入框。
+ * fallbackToMain：视觉模型的地址/Key 允许留空（= 用主配置），这里替它兜底。 */
+async function fetchModelsFromAPI(opt) {
+  const o = opt || {};
+  const baseId = o.baseUrlId || "baseUrl";
+  const keyId = o.apiKeyId || "apiKey";
+  const modelId = o.modelId || "model";
+  const listId = o.listId || "modelList";
+  const hintId = o.hintId || "modelHint";
+  const statusId = o.statusId || "setupStatus";
+  const statusFn = statusId === "setupStatus" ? setSetupStatus : setLinkStatus;
+
+  let base = document.getElementById(baseId).value.trim().replace(/\/+$/, "");
+  let key = document.getElementById(keyId).value.trim();
+
+  if (o.fallbackToMain) {
+    if (!base) base = document.getElementById("baseUrl").value.trim().replace(/\/+$/, "");
+    if (!key) key = document.getElementById("apiKey").value.trim();
+  }
+
+  const hint = document.getElementById(hintId);
 
   if (!base || !key) {
-    setSetupStatus("请先填写接口地址和 API Key", "err");
+    statusFn("请先填写接口地址和 API Key", "err");
     return;
   }
 
-  const btn = document.getElementById("btnFetchModels");
+  const btn = document.getElementById(
+    o.baseUrlId === "visionBaseUrl" ? "btnFetchVisionModels" : "btnFetchModels"
+  );
   btn.disabled = true;
   hint.textContent = "正在拉取模型列表…";
 
@@ -604,24 +1068,24 @@ async function fetchModelsFromAPI() {
     if (!list.length) throw new Error("未返回任何模型");
 
     buildOptList(
-      "modelList",
+      listId,
       list.map(function (id) { return { value: id, label: id }; }),
       function (v) {
-        document.getElementById("model").value = v;
-        setSetupStatus("已选择模型：" + v, "ok");
+        document.getElementById(modelId).value = v;
+        statusFn("已选择模型：" + v, "ok");
       }
     );
-    document.getElementById("modelList").classList.remove("hidden");
+    document.getElementById(listId).classList.remove("hidden");
 
-    const cur = document.getElementById("model").value.trim();
-    if (cur && list.indexOf(cur) >= 0) setOptValue("modelList", cur);
+    const cur = document.getElementById(modelId).value.trim();
+    if (cur && list.indexOf(cur) >= 0) setOptValue(listId, cur);
 
     hint.textContent = "已拉取 " + list.length + " 个模型";
-    setSetupStatus("模型列表已获取，请从下方选择", "ok");
+    statusFn("模型列表已获取，请从下方选择", "ok");
   } catch (e) {
     hint.textContent = "";
-    document.getElementById("modelList").classList.add("hidden");
-    setSetupStatus("拉取失败：" + e.message + "（可手动填写模型名）", "err");
+    document.getElementById(listId).classList.add("hidden");
+    statusFn("拉取失败：" + e.message + "（可手动填写模型名）", "err");
   } finally {
     btn.disabled = false;
   }
@@ -634,14 +1098,16 @@ async function fetchModelsFromAPI() {
 let messages = [];      // 对话历史（不含 system）
 let outputStack = [];   // 每轮结果，用于撤销
 
-async function callLLM(cfg, msgs) {
+async function callLLM(cfg, msgs, systemPrompt, temperature) {
   const base = cfg.baseUrl.replace(/\/+$/, "");
   const url = /\/chat\/completions$/.test(base) ? base : base + "/chat/completions";
 
+  const sys = systemPrompt || buildSystemPrompt(cfg.targetModel, loadKB());
+
   const body = {
     model: cfg.model,
-    messages: [{ role: "system", content: buildSystemPrompt(cfg.targetModel, loadKB()) }].concat(msgs),
-    temperature: 0.7,
+    messages: [{ role: "system", content: sys }].concat(msgs),
+    temperature: typeof temperature === "number" ? temperature : 0.7,
     stream: false
   };
 
@@ -690,6 +1156,13 @@ function setSetupStatus(msg, cls) {
 
 function setKbStatus(msg, cls) {
   const el = document.getElementById("kbStatus");
+  el.textContent = msg || "";
+  el.className = "status" + (cls ? " " + cls : "");
+}
+
+function setLinkStatus(msg, cls) {
+  const el = document.getElementById("linkStatus");
+  if (!el) return;
   el.textContent = msg || "";
   el.className = "status" + (cls ? " " + cls : "");
 }
@@ -745,6 +1218,42 @@ function init() {
     if (base && this.value.trim()) fetchModelsFromAPI();
   });
 
+  /* ---------- 配置页：视觉模型（图生文用）---------- */
+  document.getElementById("btnFetchVisionModels").addEventListener("click", function () {
+    fetchModelsFromAPI({
+      baseUrlId: "visionBaseUrl",
+      apiKeyId: "visionApiKey",
+      modelId: "visionModel",
+      listId: "visionModelList",
+      hintId: "visionHint",
+      statusId: "setupStatus",
+      fallbackToMain: true
+    });
+  });
+
+  /* ---------- 配置页：开源 / 作者主页 ---------- */
+  document.getElementById("douyinUrl").textContent = DOUYIN_URL;
+
+  document.getElementById("btnOpenDouyin").addEventListener("click", function () {
+    if (openExternal(DOUYIN_URL)) {
+      setLinkStatus("已在浏览器打开作者主页", "ok");
+    } else {
+      setLinkStatus("打开失败：请手动复制上面的链接", "err");
+      copyText(DOUYIN_URL);
+    }
+  });
+
+  document.getElementById("btnCopyDouyin").addEventListener("click", async function () {
+    const ok = await copyText(DOUYIN_URL);
+    if (ok) setLinkStatus("链接已复制，粘贴到浏览器或抖音即可打开", "ok");
+    else setLinkStatus("复制不可用，链接已选中，请按 Ctrl+C", "err");
+  });
+
+  document.getElementById("btnOpenGithub").addEventListener("click", function () {
+    if (openExternal(GITHUB_URL)) setLinkStatus("已在浏览器打开 GitHub 仓库", "ok");
+    else setLinkStatus("打开失败：仓库地址 " + GITHUB_URL, "err");
+  });
+
   /* ---------- 配置页：浏览目录 ---------- */
   document.getElementById("btnPickDir").addEventListener("click", async function () {
     if (!fs || !fs.getFolder) { setSetupStatus("当前环境不支持目录选择，请手动输入路径", "err"); return; }
@@ -781,6 +1290,14 @@ function init() {
 
   document.getElementById("btnKB").addEventListener("click", function () {
     showView("viewKB");
+  });
+
+  document.getElementById("btnLearn").addEventListener("click", function () {
+    showView("viewLearn");
+  });
+
+  document.getElementById("btnImg").addEventListener("click", function () {
+    showView("viewImg");
   });
 
   document.getElementById("btnNewChat").addEventListener("click", function () {
@@ -821,6 +1338,67 @@ function init() {
     saveKB("");
     setKbStatus("已清空知识库", "ok");
   });
+
+  /* ---------- 学习库 ---------- */
+  document.getElementById("learnBack").addEventListener("click", function () {
+    showView("viewMain");
+    setStatus(loadLearn().length && isLearnOn()
+      ? "学习库已生效（" + loadLearn().length + " 条），生成时会参考"
+      : "学习库未启用", "ok");
+  });
+
+  document.getElementById("learnAdd").addEventListener("click", function () {
+    const title = document.getElementById("learnTitle").value;
+    const body = document.getElementById("learnBody").value;
+
+    if (!body.trim()) { setLearnStatus("请先粘贴要投喂的提示词", "err"); return; }
+
+    const n = addLearnBatch(title, body);
+    document.getElementById("learnTitle").value = "";
+    document.getElementById("learnBody").value = "";
+    document.getElementById("learnTitle").focus();
+
+    renderLearn();
+    updateCfgSummary();
+    setLearnStatus("已投喂 " + n + " 条" +
+      (isLearnOn() ? "，生成时会自动参考" : "（当前「生成时参考」是关的，记得打开）"), "ok");
+  });
+
+  document.getElementById("learnToggle").addEventListener("click", function () {
+    const next = !isLearnOn();
+    setLearnOn(next);
+    updateLearnToggle();
+    updateCfgSummary();
+    setLearnStatus(next ? "已开启：生成时会参考学习库" : "已关闭：生成时不再参考学习库",
+      next ? "ok" : "");
+  });
+
+  document.getElementById("learnClear").addEventListener("click", function () {
+    persistLearn([]);
+    renderLearn();
+    updateCfgSummary();
+    setLearnStatus("已清空学习库", "ok");
+  });
+
+  /* ---------- 图生文 ---------- */
+  document.getElementById("imgBack").addEventListener("click", function () {
+    showView("viewMain");
+  });
+
+  document.getElementById("btnPickImage").addEventListener("click", function () {
+    pickImage();
+  });
+
+  document.getElementById("imgGen").addEventListener("click", function () {
+    runImageToText();
+  });
+
+  const imgOpts = document.querySelectorAll("#targetModelImg .opt");
+  for (let i = 0; i < imgOpts.length; i++) {
+    imgOpts[i].addEventListener("click", function () {
+      setOptValue("targetModelImg", this.getAttribute("data-value") || "");
+    });
+  }
 
   /* ---------- 快捷填充 ---------- */
   const chips = document.querySelectorAll(".chip");

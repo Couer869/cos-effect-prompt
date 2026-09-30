@@ -362,3 +362,92 @@ textarea.ta { padding: 8px; }
   padding: 6px;
   background: #262626;
 }
+.opt-scroll:empty { display: none; }
+
+/* ===== 链接展示（开源仓库 / 作者主页）===== */
+.link-box {
+  background: #1c1c1c;
+  border: 1px solid #444;
+  border-radius: 3px;
+  padding: 6px 8px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 11px;
+  color: #7fb2e8;
+  word-break: break-all;
+  user-select: text;
+  -webkit-user-select: text;
+  line-height: 1.5;
+}
+
+/* ===== 学习库列表 ===== */
+.learn-list {
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.learn-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px;
+  border-bottom: 1px solid #333;
+}
+.learn-item:hover { background: #303030; }
+
+.learn-main { flex: 1; min-width: 0; }
+
+.learn-title {
+  font-size: 11px;
+  color: #e0e0e0;
+  font-weight: 700;
+  margin-bottom: 2px;
+  word-break: break-all;
+}
+
+.learn-body {
+  font-size: 10px;
+  color: #8d8d8d;
+  line-height: 1.45;
+  word-break: break-all;
+}
+
+.learn-meta { font-size: 10px; color: #6f6f6f; margin-top: 2px; }
+
+.learn-del {
+  color: #7a7a7a;
+  font-size: 13px;
+  padding: 0 3px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.learn-del:hover { color: #e57373; }
+
+/* 学习库开关：开启时高亮 */
+.learn-toggle-on {
+  background: #1473e6 !important;
+  border-color: #1473e6 !important;
+  color: #fff !important;
+  font-weight: 700;
+}
+
+/* ===== 图生文：图片预览 ===== */
+.img-preview {
+  margin-top: 7px;
+  height: 150px;
+  overflow: hidden;
+  background: #1c1c1c;
+  border: 1px solid #444;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: #6f6f6f;
+  text-align: center;
+  padding: 6px;
+}
+.img-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
