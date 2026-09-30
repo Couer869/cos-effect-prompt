@@ -38,7 +38,14 @@
         <input id="apiKey" class="inp" type="password" placeholder="sk-..." />
 
         <label class="lbl">模型名</label>
-        <input id="model" class="inp" placeholder="deepseek-chat" />
+        <div class="field-row">
+          <input id="model" class="inp" placeholder="填好 API Key 后自动拉取" />
+          <button id="btnFetchModels" class="btn btn-sm">拉取模型</button>
+        </div>
+        <select id="modelList" class="inp hidden">
+          <option value="">— 从列表中选择模型 —</option>
+        </select>
+        <div id="modelHint" class="hint"></div>
 
         <label class="lbl">默认输出格式</label>
         <select id="targetModel" class="inp">

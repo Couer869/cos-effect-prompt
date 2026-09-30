@@ -428,7 +428,79 @@ async function callLLM(cfg, msgs) {
 }
 
 /* ============================================================
- * 七、界面交互
+ * 七、拉取模型列表（OpenAI 兼容 GET /models）
+ * ============================================================ */
+
+async function fetchModelsFromAPI() {
+  const base = document.getElementById("baseUrl").value.trim().replace(/\/+$/, "");
+  const key = document.getElementById("apiKey").value.trim();
+  const hint = document.getElementById("modelHint");
+
+  if (!base || !key) {
+    setSetupStatus("请先填写接口地址和 API Key", "err");
+    return;
+  }
+
+  const btn = document.getElementById("btnFetchModels");
+  btn.disabled = true;
+  hint.textContent = "正在拉取模型列表…";
+
+  try {
+    const res = await fetch(base + "/models", {
+      headers: { "Authorization": "Bearer " + key }
+    });
+    const raw = await res.text();
+
+    let data;
+    try { data = JSON.parse(raw); }
+    catch (e) { throw new Error("返回非 JSON（该服务商可能不支持 /models）"); }
+
+    if (!res.ok) {
+      const msg = (data && data.error && (data.error.message || data.error.code)) || res.status;
+      throw new Error("HTTP " + res.status + "：" + msg);
+    }
+
+    const arr = data.data || data.models || [];
+    const list = arr
+      .map(function (m) { return (typeof m === "string") ? m : (m.id || m.name || ""); })
+      .filter(Boolean)
+      .sort();
+
+    if (!list.length) throw new Error("未返回任何模型");
+
+    const sel = document.getElementById("modelList");
+    while (sel.firstChild) sel.removeChild(sel.firstChild);
+
+    const ph = document.createElement("option");
+    ph.value = "";
+    ph.textContent = "— 从列表中选择模型（共 " + list.length + " 个）—";
+    sel.appendChild(ph);
+
+    list.forEach(function (id) {
+      const o = document.createElement("option");
+      o.value = id;
+      o.textContent = id;
+      sel.appendChild(o);
+    });
+    sel.classList.remove("hidden");
+
+    // 当前模型名若在列表中，自动选中
+    const cur = document.getElementById("model").value.trim();
+    if (cur && list.indexOf(cur) >= 0) sel.value = cur;
+
+    hint.textContent = "已拉取 " + list.length + " 个模型";
+    setSetupStatus("模型列表已获取，请从下方选择", "ok");
+  } catch (e) {
+    hint.textContent = "";
+    document.getElementById("modelList").classList.add("hidden");
+    setSetupStatus("拉取失败：" + e.message + "（可手动填写模型名）", "err");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* ============================================================
+ * 八、界面交互
  * ============================================================ */
 
 function setStatus(msg, cls) {
@@ -477,6 +549,32 @@ function init() {
     document.getElementById("baseUrl").value = p.url;
     document.getElementById("model").value = p.model;
     setSetupStatus("已填入 " + this.options[this.selectedIndex].text + " 的默认配置，请补填 API Key", "ok");
+  });
+
+  /* ---------- 配置页：拉取模型列表 ---------- */
+  document.getElementById("btnFetchModels").addEventListener("click", function () {
+    fetchModelsFromAPI();
+  });
+
+  // 选中的模型写回模型名输入框
+  document.getElementById("modelList").addEventListener("change", function () {
+    if (!this.value) return;
+    document.getElementById("model").value = this.value;
+    setSetupStatus("已选择模型：" + this.value, "ok");
+  });
+
+  // 填入 API Key 后自动拉取（失焦触发，避免每次按键都请求）
+  document.getElementById("apiKey").addEventListener("change", function () {
+    const base = document.getElementById("baseUrl").value.trim();
+    if (base && this.value.trim()) fetchModelsFromAPI();
+  });
+
+  // 切换服务商后，若已有 Key 也自动拉取
+  document.getElementById("providerPreset").addEventListener("change", function () {
+    const key = document.getElementById("apiKey").value.trim();
+    if (key && this.value && this.value !== "custom") {
+      setTimeout(fetchModelsFromAPI, 300);
+    }
   });
 
   /* ---------- 配置页：浏览选择导出目录 ---------- */
