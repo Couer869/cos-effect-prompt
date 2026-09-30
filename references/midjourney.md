@@ -9,7 +9,7 @@
 | 属性 | 默认值 | 可改为 |
 |---|---|---|
 | 风格 | **写实 3DCG**（`high-quality 3D CGI render, realistic PBR materials`） | 二次元 / 水墨 / 电影感 / 插画… |
-| 构图 | **电影级构图**（三分法 / 引导线） | 对称 / 中心 / 极简 |
+| 构图 | **大师电影感构图**（从下方「构图库」选 1-2 种最贴合的） | 指定具体构图 |
 | 景别 | **远中近三层结合**（纵深） | 简化层次 |
 | 前景 | **有故事感的实体元素**（非框架式遮挡、非纯地面） | 指定元素或去掉 |
 | 镜头焦段 | **35mm** | 24 / 50 / 85 / 135mm |
@@ -19,6 +19,34 @@
 | 光斑 | **强化奶油虚化光斑**（`enhanced creamy bokeh orbs`） | 减弱 |
 
 > ⚠️ **前景规则**：不要用"栏杆/控制台边缘"这类**画框式**前景；要放**叙事性实体元素**（散落文件、电缆、积水倒影、瓦砾、遗落装备…）；地面不要是空的。
+
+### 大师电影感构图库
+
+写 MJ 提示词时**从下表挑 1-2 种**最贴合场景的构图（不要堆砌），写进提示词：
+
+| 构图 | 特征 | 大师代表 | MJ 写法 |
+|---|---|---|---|
+| **单点透视 / 对称** | 中轴严格对称，线条汇聚于一点 | 库布里克、韦斯·安德森 | `dead-center symmetrical composition, one-point perspective` |
+| **三分法** | 主体落在三分交点 | 通用经典 | `rule of thirds composition` |
+| **黄金分割** | 1:1.618 布局 | 文艺复兴 / 经典电影 | `golden ratio composition` |
+| **引导线** | 线条牵引视线 | 通用 | `strong leading lines drawing the eye` |
+| **对角构图** | 主体沿对角线展开，动感 | 动作 / 战争片 | `diagonal composition, dynamic tension` |
+| **层次纵深** | 前中后景层层递进 | 诺兰、塔可夫斯基 | `layered foreground midground background depth` |
+| **留白** | 大面积空旷，孤独感 | 是枝裕和 | `generous negative space` |
+| **低角度仰拍** | 压迫感 / 英雄感 | 通用 | `low-angle hero shot` |
+| **荷兰角** | 画面倾斜，失衡不安 | 悬疑 / 惊悚 | `Dutch angle, tilted horizon` |
+| **剪影逆光** | 强逆光成剪影 | 斯皮尔伯格、王家卫 | `backlit silhouette against bright light` |
+| **S 形 / 曲线** | 蜿蜒曲线引导 | 风景 / 史诗 | `S-curve composition` |
+| **广角史诗** | 宏大场面、渺小人物 | 莱昂内、维伦纽瓦 | `epic wide-angle establishing shot` |
+| **水面镜像** | 倒影形成对称 | 塔可夫斯基 | `mirror reflection composition on water` |
+| **群像一字排开** | 对称横向并列 | 韦斯·安德森 | `symmetrical ensemble staging` |
+| **中轴对称框景** | 环境结构（门/窗/拱）框住主体 | 黑泽明、莱昂内 | `frame within a frame by architecture`（*环境结构内框，非人为前景遮挡*） |
+
+**选择建议**：
+- 单人孤独场景 → 留白 / 剪影逆光 / 低角度
+- 机甲 / 建筑巨物 → 低角度仰拍 / 单点透视 / 广角史诗
+- 雨夜 / 水面 → 水面镜像 / 剪影逆光 / 荷兰角
+- 室内走廊 / 仪式感 → 单点透视 / 对称 / 层次纵深
 
 ## 二、提示词结构
 
