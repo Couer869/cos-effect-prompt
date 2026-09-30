@@ -146,6 +146,19 @@ const CFG_KEY = "cos_effect_prompt_cfg_v1";
 const HISTORY_KEY = "cos_effect_prompt_history_v1";
 const MAX_HISTORY = 30;
 
+/* 服务商预设：选中后自动填入接口地址与常用模型名 */
+const PROVIDERS = {
+  deepseek:    { url: "https://api.deepseek.com/v1",                                  model: "deepseek-chat" },
+  qwen:        { url: "https://dashscope.aliyuncs.com/compatible-mode/v1",             model: "qwen-plus" },
+  kimi:        { url: "https://api.moonshot.cn/v1",                                    model: "moonshot-v1-8k" },
+  zhipu:       { url: "https://open.bigmodel.cn/api/paas/v4",                          model: "glm-4-plus" },
+  siliconflow: { url: "https://api.siliconflow.cn/v1",                                 model: "deepseek-ai/DeepSeek-V3" },
+  minimax:     { url: "https://api.minimax.chat/v1",                                   model: "abab6.5s-chat" },
+  openai:      { url: "https://api.openai.com/v1",                                      model: "gpt-4o" },
+  openrouter:  { url: "https://openrouter.ai/api/v1",                                   model: "openai/gpt-4o" },
+  custom:      { url: "",                                                               model: "" }
+};
+
 function loadConfig() {
   try { return JSON.parse(localStorage.getItem(CFG_KEY) || "{}"); }
   catch (e) { return {}; }
@@ -451,6 +464,33 @@ function init() {
   } else {
     showView("setup");
   }
+
+  /* ---------- 配置页：服务商预设 ---------- */
+  document.getElementById("providerPreset").addEventListener("change", function () {
+    const key = this.value;
+    const p = PROVIDERS[key];
+    if (!p) return;
+    if (key === "custom") {
+      setSetupStatus("自定义模式：请手动填写接口地址与模型名", "ok");
+      return;
+    }
+    document.getElementById("baseUrl").value = p.url;
+    document.getElementById("model").value = p.model;
+    setSetupStatus("已填入 " + this.options[this.selectedIndex].text + " 的默认配置，请补填 API Key", "ok");
+  });
+
+  /* ---------- 配置页：浏览选择导出目录 ---------- */
+  document.getElementById("btnPickDir").addEventListener("click", async function () {
+    try {
+      const folder = await fs.getFolder();          // 打开系统目录选择框
+      if (!folder) return;                           // 用户取消
+      const p = (folder.nativePath || "").replace(/\\/g, "/");
+      document.getElementById("exportDir").value = p;
+      setSetupStatus("已选择导出目录：" + p, "ok");
+    } catch (e) {
+      setSetupStatus("选择目录失败：" + e.message + "（可手动输入路径）", "err");
+    }
+  });
 
   /* ---------- 配置页 ---------- */
   document.getElementById("btnEnter").addEventListener("click", function () {

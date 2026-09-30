@@ -17,6 +17,20 @@
       </header>
 
       <section class="card">
+        <label class="lbl">服务商预设（选一个自动填入地址和模型名）</label>
+        <select id="providerPreset" class="inp">
+          <option value="">— 选择服务商 —</option>
+          <option value="deepseek">DeepSeek（深度求索）</option>
+          <option value="qwen">通义千问（阿里）</option>
+          <option value="kimi">Kimi / Moonshot（月之暗面）</option>
+          <option value="zhipu">智谱 GLM</option>
+          <option value="siliconflow">硅基流动 SiliconFlow</option>
+          <option value="minimax">MiniMax</option>
+          <option value="openai">OpenAI</option>
+          <option value="openrouter">OpenRouter</option>
+          <option value="custom">自定义</option>
+        </select>
+
         <label class="lbl">接口地址（Base URL）</label>
         <input id="baseUrl" class="inp" placeholder="https://api.deepseek.com/v1" />
 
@@ -34,8 +48,11 @@
           <option value="novelai">NovelAI（Danbooru 标签）</option>
         </select>
 
-        <label class="lbl">导出目录（可选，一键导出用）</label>
-        <input id="exportDir" class="inp" placeholder="C:/Users/你的用户名/Downloads" />
+        <label class="lbl">导出目录（一键导出用）</label>
+        <div class="field-row">
+          <input id="exportDir" class="inp" placeholder="点右侧「浏览…」选择目录" />
+          <button id="btnPickDir" class="btn btn-sm">浏览…</button>
+        </div>
 
         <div class="notice">
           <div class="notice-title">安全说明</div>

@@ -241,3 +241,8 @@ body {
 
 /* 输入区留白更舒适 */
 textarea.ta { padding: 8px; }
+
+/* 输入框 + 按钮 同行（如 导出目录 + 浏览…） */
+.field-row { display: flex; gap: 6px; align-items: center; }
+.field-row .inp { flex: 1; min-width: 0; }
+.field-row .btn { flex-shrink: 0; white-space: nowrap; }
