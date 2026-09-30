@@ -5,7 +5,7 @@
 ## 环境要求
 
 - Photoshop **24.0** 或更高（支持 UXP 的版本）
-- **UXP Developer Tool**（用于加载开发版插件）：在 Creative Cloud 桌面端「市场」里搜索安装，或从 Adobe 官网下载
+- 用**方式 A** 安装不需要任何额外工具；只有用**方式 B**（开发调试）才需要 UXP Developer Tool
 
 ## 安装
 
@@ -15,8 +15,9 @@ UXP 插件可直接放进 Photoshop 安装目录的 `Plug-ins\` 下，PS 启动�
 
 1. 找到你的 Photoshop 安装目录下的 `Plug-ins\`，例如：
    ```
-   D:\1\Adobe Photoshop 2026\Plug-ins\
+   C:\Program Files\Adobe\Adobe Photoshop 2026\Plug-ins\
    ```
+   （装在 D 盘就换成 `D:\...\Adobe Photoshop 2026\Plug-ins\`，以你实际安装位置为准）
 2. 在里面新建文件夹 `cos-effect-prompt`
 3. 把这 4 个文件复制进去：
    ```
