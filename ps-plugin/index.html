@@ -14,8 +14,8 @@
 
     <!-- ===== 设置区（可折叠） ===== -->
     <section class="card">
-      <div class="card-head" id="settingsToggle">
-        <span>API 设置</span>
+      <div class="card-head clickable" id="settingsToggle">
+        <span>API 与导出设置</span>
         <span class="chev" id="chev">▾</span>
       </div>
       <div class="card-body" id="settingsBody">
@@ -36,6 +36,9 @@
           <option value="novelai">NovelAI（Danbooru 标签）</option>
         </select>
 
+        <label class="lbl">导出目录（一键导出到此）</label>
+        <input id="exportDir" class="inp" placeholder="C:/Users/你的用户名/Downloads" />
+
         <div class="row">
           <button id="saveCfg" class="btn btn-sm">保存设置</button>
           <button id="clearCfg" class="btn btn-sm btn-ghost">清除</button>
@@ -50,6 +53,14 @@
       <textarea id="request" class="ta" rows="4"
         placeholder="例：给这张 COS 照脚下加一个金色魔法阵，CG 质感，明显一点"></textarea>
 
+      <div class="chips">
+        <span class="chip" data-tpl="给这张照片脚下加一个金色魔法阵，CG 质感，明显一点">加魔法阵</span>
+        <span class="chip" data-tpl="修脸自然一点，祛痘印和黑眼圈，头发加点亮晶晶">修脸+亮晶晶发</span>
+        <span class="chip" data-tpl="背景换成赛博朋克雨夜，冷色调，霓虹灯光">赛博夜景</span>
+        <span class="chip" data-tpl="瘦腰，加沙漏身材，衣服绷紧一点">身材塑形</span>
+        <span class="chip" data-tpl="想要王家卫电影那种感觉，霓虹撞色，雨夜街道">电影风格</span>
+      </div>
+
       <div class="row">
         <button id="gen" class="btn btn-primary">生成提示词</button>
         <button id="useDoc" class="btn btn-ghost btn-sm">带上文档信息</button>
@@ -63,10 +74,24 @@
         <span>生成结果</span>
         <span class="card-actions">
           <button id="copy" class="btn btn-sm">复制</button>
-          <button id="save" class="btn btn-sm">存为 JSON</button>
+          <button id="exportQuick" class="btn btn-sm">导出到目录</button>
+          <button id="save" class="btn btn-sm btn-ghost">另存为…</button>
         </span>
       </div>
       <textarea id="output" class="ta out" rows="10" placeholder="生成结果会显示在这里…"></textarea>
+    </section>
+
+    <!-- ===== 历史记录 ===== -->
+    <section class="card">
+      <div class="card-head">
+        <span>历史记录 <span id="histCount" class="count">0</span></span>
+        <span class="card-actions">
+          <button id="clearHistory" class="btn btn-sm btn-ghost">清空</button>
+        </span>
+      </div>
+      <div id="historyList" class="history">
+        <div class="empty">暂无记录</div>
+      </div>
     </section>
 
   </div>

@@ -139,6 +139,8 @@ function buildSystemPrompt(target) {
  * ============================================================ */
 
 const CFG_KEY = "cos_effect_prompt_cfg_v1";
+const HISTORY_KEY = "cos_effect_prompt_history_v1";
+const MAX_HISTORY = 30;
 
 function loadConfig() {
   try { return JSON.parse(localStorage.getItem(CFG_KEY) || "{}"); }
@@ -155,7 +157,8 @@ function readForm() {
     baseUrl: document.getElementById("baseUrl").value.trim(),
     apiKey: document.getElementById("apiKey").value.trim(),
     model: document.getElementById("model").value.trim(),
-    targetModel: document.getElementById("targetModel").value
+    targetModel: document.getElementById("targetModel").value,
+    exportDir: document.getElementById("exportDir").value.trim()
   };
 }
 
@@ -164,14 +167,170 @@ function writeForm(cfg) {
   document.getElementById("apiKey").value = cfg.apiKey || "";
   document.getElementById("model").value = cfg.model || "";
   document.getElementById("targetModel").value = cfg.targetModel || "nanobanana";
+  document.getElementById("exportDir").value = cfg.exportDir || "";
 }
 
 /* ============================================================
- * 三、调用 API
+ * 三、历史记录
+ * ============================================================ */
+
+function labelOf(target) {
+  if (target === "midjourney") return "MJ";
+  if (target === "comfyui") return "Comfy";
+  if (target === "novelai") return "NAI";
+  return "NanoBanana";
+}
+
+function nowStr() {
+  const d = new Date();
+  const p = function (n) { return n < 10 ? "0" + n : "" + n; };
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) +
+         " " + p(d.getHours()) + ":" + p(d.getMinutes());
+}
+
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]"); }
+  catch (e) { return []; }
+}
+
+function persistHistory(list) {
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0, MAX_HISTORY))); }
+  catch (e) { /* 超限忽略 */ }
+}
+
+function addHistory(entry) {
+  const list = loadHistory();
+  list.unshift(entry);
+  persistHistory(list);
+  renderHistory();
+}
+
+function renderHistory() {
+  const list = loadHistory();
+  const box = document.getElementById("historyList");
+  document.getElementById("histCount").textContent = String(list.length);
+
+  // 清空
+  while (box.firstChild) box.removeChild(box.firstChild);
+
+  if (!list.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "暂无记录";
+    box.appendChild(empty);
+    return;
+  }
+
+  list.forEach(function (item, idx) {
+    const row = document.createElement("div");
+    row.className = "hist-item";
+
+    const main = document.createElement("div");
+    main.className = "hist-main";
+
+    const title = document.createElement("div");
+    title.className = "hist-title";
+    title.textContent = item.request || "(无需求)";
+
+    const meta = document.createElement("div");
+    meta.className = "hist-meta";
+    meta.textContent = item.time || "";
+
+    main.appendChild(title);
+    main.appendChild(meta);
+
+    const tag = document.createElement("span");
+    tag.className = "hist-tag";
+    tag.textContent = labelOf(item.target);
+
+    const del = document.createElement("span");
+    del.className = "hist-del";
+    del.textContent = "×";
+    del.addEventListener("click", function (ev) {
+      ev.stopPropagation();
+      const l = loadHistory();
+      l.splice(idx, 1);
+      persistHistory(l);
+      renderHistory();
+    });
+
+    row.appendChild(main);
+    row.appendChild(tag);
+    row.appendChild(del);
+
+    row.addEventListener("click", function () {
+      document.getElementById("output").value = item.result || "";
+      if (item.request) document.getElementById("request").value = item.request;
+      if (item.target) document.getElementById("targetModel").value = item.target;
+      setStatus("已载入历史记录", "ok");
+    });
+
+    box.appendChild(row);
+  });
+}
+
+/* ============================================================
+ * 四、文件导出
+ * ============================================================ */
+
+function buildFilename(target, content) {
+  const d = new Date();
+  const p = function (n) { return n < 10 ? "0" + n : "" + n; };
+  const ts = d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" +
+             p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+
+  if (target === "nanobanana") {
+    try {
+      const obj = JSON.parse(content);
+      if (obj && obj.id) return obj.id + ".json";
+    } catch (e) { /* 解析失败退回时间戳 */ }
+    return "preset-" + ts + ".json";
+  }
+  if (target === "comfyui") return "comfyui-" + ts + ".json";
+  return target + "-" + ts + ".txt";
+}
+
+async function saveAs(filename, content) {
+  const isJson = /\.json$/.test(filename);
+  const file = await fs.getFileForSaving(filename, { types: isJson ? ["json"] : ["txt"] });
+  if (!file) return;
+  await file.write(content, { format: formats.utf8 });
+  setStatus("已保存：" + file.name, "ok");
+}
+
+async function exportToDir() {
+  const out = document.getElementById("output").value.trim();
+  if (!out) { setStatus("没有可导出的内容", "err"); return; }
+
+  const cfg = readForm();
+  const filename = buildFilename(cfg.targetModel, out);
+  const dir = (cfg.exportDir || "").trim();
+
+  // 未设目录 → 退回"另存为"对话框
+  if (!dir) { return saveAs(filename, out); }
+
+  // 归一化目录路径为 file: URL
+  const dirClean = dir.replace(/\\/g, "/").replace(/\/+$/, "");
+  const folderUrl = dirClean.indexOf("file:") === 0
+    ? dirClean
+    : "file:/" + dirClean.replace(/^\/+/, "");
+
+  try {
+    const folder = await fs.getEntryWithUrl(folderUrl);
+    const file = await folder.createFile(filename, { overwrite: true });
+    await file.write(out, { format: formats.utf8 });
+    setStatus("已导出 " + filename + " → " + dirClean, "ok");
+  } catch (e) {
+    setStatus("导出失败：" + e.message + "（请检查导出目录是否存在）", "err");
+  }
+}
+
+/* ============================================================
+ * 五、调用 API
  * ============================================================ */
 
 async function callLLM(cfg, userText) {
-  let base = cfg.baseUrl.replace(/\/+$/, "");
+  const base = cfg.baseUrl.replace(/\/+$/, "");
   const url = /\/chat\/completions$/.test(base) ? base : base + "/chat/completions";
 
   const body = {
@@ -195,7 +354,8 @@ async function callLLM(cfg, userText) {
 
   const raw = await res.text();
   let data;
-  try { data = JSON.parse(raw); } catch (e) { throw new Error("返回非 JSON：" + raw.slice(0, 200)); }
+  try { data = JSON.parse(raw); }
+  catch (e) { throw new Error("返回非 JSON：" + raw.slice(0, 200)); }
 
   if (!res.ok) {
     const msg = (data && data.error && (data.error.message || data.error.code)) || res.status;
@@ -211,7 +371,7 @@ async function callLLM(cfg, userText) {
 }
 
 /* ============================================================
- * 四、界面交互
+ * 六、界面交互
  * ============================================================ */
 
 function setStatus(msg, cls) {
@@ -222,30 +382,45 @@ function setStatus(msg, cls) {
 
 function init() {
   writeForm(loadConfig());
+  renderHistory();
 
   // 设置区折叠
   const toggle = document.getElementById("settingsToggle");
   const body = document.getElementById("settingsBody");
-  toggle.classList.add("clickable");
   toggle.addEventListener("click", function () {
-    body.classList.toggle("hidden");
-    document.getElementById("chev").textContent = body.classList.contains("hidden") ? "▸" : "▾";
+    if (body.classList.contains("hidden")) {
+      body.classList.remove("hidden");
+      document.getElementById("chev").textContent = "▾";
+    } else {
+      body.classList.add("hidden");
+      document.getElementById("chev").textContent = "▸";
+    }
   });
 
-  // 保存设置
+  // 保存 / 清除设置
   document.getElementById("saveCfg").addEventListener("click", function () {
     saveConfig(readForm());
     setStatus("设置已保存（仅存本机）", "ok");
   });
 
-  // 清除设置
   document.getElementById("clearCfg").addEventListener("click", function () {
     localStorage.removeItem(CFG_KEY);
     writeForm({});
     setStatus("已清除设置", "ok");
   });
 
-  // 带上文档信息
+  // 快捷填充
+  const chips = document.querySelectorAll(".chip");
+  for (let i = 0; i < chips.length; i++) {
+    chips[i].addEventListener("click", function () {
+      const ta = document.getElementById("request");
+      const tpl = chips[i].getAttribute("data-tpl") || "";
+      ta.value = ta.value.trim() ? (ta.value.trim() + "；" + tpl) : tpl;
+      setStatus("已填入示例需求", "ok");
+    });
+  }
+
+  // 带上当前文档信息
   document.getElementById("useDoc").addEventListener("click", function () {
     if (!photoshop) { setStatus("当前不在 Photoshop 中运行", "err"); return; }
     try {
@@ -281,6 +456,7 @@ function init() {
     try {
       const out = await callLLM(cfg, req);
       document.getElementById("output").value = out;
+      addHistory({ time: nowStr(), target: cfg.targetModel, request: req, result: out });
       setStatus("生成完成", "ok");
     } catch (e) {
       setStatus("失败：" + e.message, "err");
@@ -297,23 +473,26 @@ function init() {
     setStatus("已复制到剪贴板", "ok");
   });
 
-  // 存为 JSON
-  document.getElementById("save").addEventListener("click", async function () {
-    const v = document.getElementById("output").value;
+  // 导出到目录
+  document.getElementById("exportQuick").addEventListener("click", function () {
+    exportToDir();
+  });
+
+  // 另存为
+  document.getElementById("save").addEventListener("click", function () {
+    const v = document.getElementById("output").value.trim();
     if (!v) { setStatus("没有可保存的内容", "err"); return; }
-    try {
-      const target = readForm().targetModel;
-      const name = target === "nanobanana" ? "preset.json" : target + "-prompt.txt";
-      const file = await fs.getFileForSaving(name, {
-        types: target === "nanobanana" ? ["json"] : ["txt"]
-      });
-      if (!file) return;
-      const isJson = target === "nanobanana";
-      await file.write(v, { format: isJson ? formats.utf8 : formats.utf8 });
-      setStatus("已保存：" + file.name, "ok");
-    } catch (e) {
+    const cfg = readForm();
+    saveAs(buildFilename(cfg.targetModel, v), v).catch(function (e) {
       setStatus("保存失败：" + e.message, "err");
-    }
+    });
+  });
+
+  // 清空历史
+  document.getElementById("clearHistory").addEventListener("click", function () {
+    localStorage.removeItem(HISTORY_KEY);
+    renderHistory();
+    setStatus("历史记录已清空", "ok");
   });
 }
 

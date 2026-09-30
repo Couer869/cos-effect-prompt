@@ -34,7 +34,7 @@
         "https://generativelanguage.googleapis.com"
       ]
     },
-    "localFileSystem": "request"
+    "localFileSystem": "fullAccess"
   },
   "featureFlags": {
     "enableAlerts": true
