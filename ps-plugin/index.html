@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+
+    <header class="hdr">
+      <div class="hdr-title">COS 后期提示词生成器</div>
+      <div class="hdr-sub">填你自己的 API，生成专业后期提示词</div>
+    </header>
+
+    <!-- ===== 设置区（可折叠） ===== -->
+    <section class="card">
+      <div class="card-head" id="settingsToggle">
+        <span>API 设置</span>
+        <span class="chev" id="chev">▾</span>
+      </div>
+      <div class="card-body" id="settingsBody">
+        <label class="lbl">接口地址（Base URL）</label>
+        <input id="baseUrl" class="inp" placeholder="https://api.deepseek.com/v1" />
+
+        <label class="lbl">API Key</label>
+        <input id="apiKey" class="inp" type="password" placeholder="sk-..." />
+
+        <label class="lbl">模型名</label>
+        <input id="model" class="inp" placeholder="deepseek-chat" />
+
+        <label class="lbl">目标模型（输出格式）</label>
+        <select id="targetModel" class="inp">
+          <option value="nanobanana">Nano Banana（插件预设信封）</option>
+          <option value="midjourney">Midjourney（自然语言 + 参数）</option>
+          <option value="comfyui">ComfyUI / SD（tag + 权重 + 参数）</option>
+          <option value="novelai">NovelAI（Danbooru 标签）</option>
+        </select>
+
+        <div class="row">
+          <button id="saveCfg" class="btn btn-sm">保存设置</button>
+          <button id="clearCfg" class="btn btn-sm btn-ghost">清除</button>
+        </div>
+        <div class="hint">Key 只存在你本机，不会上传到任何第三方服务器。</div>
+      </div>
+    </section>
+
+    <!-- ===== 需求输入 ===== -->
+    <section class="card">
+      <label class="lbl">你的需求</label>
+      <textarea id="request" class="ta" rows="4"
+        placeholder="例：给这张 COS 照脚下加一个金色魔法阵，CG 质感，明显一点"></textarea>
+
+      <div class="row">
+        <button id="gen" class="btn btn-primary">生成提示词</button>
+        <button id="useDoc" class="btn btn-ghost btn-sm">带上文档信息</button>
+      </div>
+      <div id="status" class="status"></div>
+    </section>
+
+    <!-- ===== 输出 ===== -->
+    <section class="card">
+      <div class="card-head">
+        <span>生成结果</span>
+        <span class="card-actions">
+          <button id="copy" class="btn btn-sm">复制</button>
+          <button id="save" class="btn btn-sm">存为 JSON</button>
+        </span>
+      </div>
+      <textarea id="output" class="ta out" rows="10" placeholder="生成结果会显示在这里…"></textarea>
+    </section>
+
+  </div>
+  <script src="index.js"></script>
+</body>
+</html>

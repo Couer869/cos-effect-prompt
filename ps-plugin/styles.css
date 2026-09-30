@@ -1,0 +1,99 @@
+/* COS 后期提示词生成器 — PS 面板样式（深色，贴合 Photoshop） */
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0;
+  background: #232323;
+  color: #d6d6d6;
+  font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
+  font-size: 12px;
+  user-select: none;
+}
+
+.app { padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+
+/* 头部 */
+.hdr { padding: 2px 0 6px; }
+.hdr-title { font-size: 14px; font-weight: 700; color: #f0f0f0; }
+.hdr-sub { font-size: 11px; color: #8d8d8d; margin-top: 2px; }
+
+/* 卡片 */
+.card {
+  background: #2b2b2b;
+  border: 1px solid #3a3a3a;
+  border-radius: 4px;
+  padding: 8px;
+}
+
+.card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 700;
+  color: #e8e8e8;
+  padding: 2px 0 6px;
+}
+
+.card-head.clickable { cursor: pointer; }
+.chev { color: #8d8d8d; font-size: 11px; }
+.card-actions { display: flex; gap: 6px; }
+
+.card-body.hidden { display: none; }
+
+/* 表单 */
+.lbl { display: block; color: #9a9a9a; margin: 6px 0 3px; font-size: 11px; }
+
+.inp, .ta {
+  width: 100%;
+  background: #1c1c1c;
+  color: #e4e4e4;
+  border: 1px solid #444;
+  border-radius: 3px;
+  padding: 5px 6px;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+}
+.inp:focus, .ta:focus { border-color: #4a90d9; }
+
+.ta { resize: vertical; line-height: 1.5; user-select: text; }
+.ta.out { font-family: Consolas, monospace; font-size: 11px; }
+
+/* 按钮 */
+.row { display: flex; gap: 6px; align-items: center; margin-top: 8px; flex-wrap: wrap; }
+
+.btn {
+  background: #3a3a3a;
+  color: #e0e0e0;
+  border: 1px solid #4a4a4a;
+  border-radius: 3px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.btn:hover { background: #454545; }
+.btn:active { background: #333; }
+
+.btn-sm { padding: 3px 9px; font-size: 11px; }
+
+.btn-primary {
+  background: #1473e6;
+  border-color: #1473e6;
+  color: #fff;
+  flex: 1;
+  font-weight: 700;
+}
+.btn-primary:hover { background: #0d66d0; }
+.btn-primary:disabled { background: #2f4f78; border-color: #2f4f78; cursor: default; }
+
+.btn-ghost { background: transparent; color: #9a9a9a; }
+
+/* 状态 */
+.status { font-size: 11px; color: #8d8d8d; margin-top: 6px; min-height: 14px; }
+.status.ok { color: #4caf50; }
+.status.err { color: #e57373; }
+
+.hint { font-size: 10px; color: #6f6f6f; margin-top: 6px; line-height: 1.4; }

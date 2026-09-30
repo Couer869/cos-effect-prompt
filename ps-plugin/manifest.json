@@ -1,0 +1,42 @@
+{
+  "manifestVersion": 5,
+  "id": "com.couer869.coseffectprompt",
+  "name": "COS 后期提示词生成器",
+  "version": "1.0.0",
+  "main": "index.html",
+  "host": [
+    { "app": "PS", "minVersion": "24.0" }
+  ],
+  "entrypoints": [
+    {
+      "type": "panel",
+      "id": "cosPromptPanel",
+      "label": { "default": "COS 提示词" },
+      "minimumSize": { "width": 260, "height": 380 },
+      "maximumSize": { "width": 1600, "height": 1600 },
+      "preferredDockedSize": { "width": 330, "height": 620 },
+      "preferredFloatingSize": { "width": 380, "height": 660 }
+    }
+  ],
+  "requiredPermissions": {
+    "network": {
+      "domains": [
+        "https://api.openai.com",
+        "https://api.deepseek.com",
+        "https://dashscope.aliyuncs.com",
+        "https://api.moonshot.cn",
+        "https://open.bigmodel.cn",
+        "https://api.siliconflow.cn",
+        "https://openrouter.ai",
+        "https://api.groq.com",
+        "https://api.together.xyz",
+        "https://api.minimax.chat",
+        "https://generativelanguage.googleapis.com"
+      ]
+    },
+    "localFileSystem": "request"
+  },
+  "featureFlags": {
+    "enableAlerts": true
+  }
+}
