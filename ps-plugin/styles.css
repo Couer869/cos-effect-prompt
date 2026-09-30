@@ -260,15 +260,13 @@ body {
   line-height: 1.6;
 }
 
-/* ===== 生成结果展示区（可编辑 textarea）=====
- * 要同时满足两件事：
- *   1) 能手动编辑 —— 必须是 textarea
- *   2) 能看全 / 能滚动 —— 靠 JS 按内容自动增高（rows），外层 .app 滚动；
- *      超出上限后 textarea 自身再滚（overflow-y）。
+/* ===== 生成结果：浏览态（可滚动 div）=====
+ * UXP 里 div 的 overflow 滚动是可靠的，textarea 的不是——所以浏览用 div。
+ * 高度写死（height 而非 max-height），overflow-y 才会稳定生效；
+ * 想一次看全就点「展开全部」，改成 auto 交给外层面板滚动。
  */
-.output-edit {
-  min-height: 200px;
-  max-height: 560px;
+.output-view {
+  height: 280px;
   overflow-y: auto;
   overflow-x: hidden;
   background: #1c1c1c;
@@ -283,12 +281,36 @@ body {
   word-break: break-word;
   user-select: text;
   -webkit-user-select: text;
-  resize: vertical;
 }
-.output-edit:focus { border-color: #4a90d9; }
+.output-view.empty {
+  color: #6f6f6f;
+  font-family: inherit;
+  font-size: 12px;
+}
+/* 展开：放开高度上限，整页滚动一次看全 */
+.output-view.expanded {
+  height: auto;
+  max-height: none;
+  overflow-y: visible;
+}
 
-/* 展开状态：把高度上限放开，一次看全 */
-.output-edit.expanded { max-height: none; }
+/* ===== 生成结果：编辑态（textarea）===== */
+.output-edit {
+  height: 280px;
+  overflow-y: auto;
+  background: #1c1c1c;
+  border: 1px solid #4a90d9;
+  border-radius: 3px;
+  padding: 8px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.55;
+  color: #e4e4e4;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+  -webkit-user-select: text;
+}
 
 /* ===== 整行按钮 ===== */
 .btn-block {

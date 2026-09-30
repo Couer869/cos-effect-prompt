@@ -186,19 +186,24 @@
 
       <section class="card">
         <div class="card-head">
-          <span>生成结果 <span class="hdr-tip">（可直接编辑）</span></span>
+          <span>生成结果</span>
           <span class="card-actions">
-            <button id="copy" class="btn btn-sm">复制</button>
+            <button id="btnEdit" class="btn btn-sm">编辑</button>
             <button id="exportQuick" class="btn btn-sm">导出到目录</button>
             <button id="save" class="btn btn-sm btn-ghost">另存为…</button>
           </span>
         </div>
-        <textarea id="output" class="ta out output-edit" rows="12"
-          placeholder="生成结果会显示在这里，可直接编辑…"></textarea>
+
+        <div id="outputView" class="output-view empty">生成结果会显示在这里…</div>
+        <textarea id="output" class="ta out output-edit hidden" rows="16"
+          placeholder="在这里直接修改内容，改完点「完成」写回结果区"></textarea>
+
         <div class="row">
+          <button id="btnScrollUp" class="btn btn-sm">↑ 向上</button>
+          <button id="btnScrollDown" class="btn btn-sm">↓ 向下</button>
           <button id="btnExpand" class="btn btn-sm btn-ghost">展开全部</button>
-          <span class="hint" id="outHint">内容过长时框内可上下滚动，或点「展开全部」</span>
         </div>
+        <div class="hint" id="outHint">结果区可上下滚动浏览全文</div>
 
         <label class="lbl">继续优化（基于上面的结果提新要求）</label>
         <textarea id="refine" class="ta ta-refine" rows="5"

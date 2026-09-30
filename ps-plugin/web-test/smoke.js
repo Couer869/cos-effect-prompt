@@ -1,8 +1,9 @@
 /* 冒烟测试：用 jsdom 加载真实 index.html + index.js，验证
- *  1) init() 不抛错
- *  2) 所有按钮 handler 都挂上了（点击不报错）
- *  3) 知识库能存/读，并且会注入到 system prompt
- *  4) 输出区是 div，复制/导出能读到内容
+ *  1) init() 不抛错，所有 handler 都挂上
+ *  2) 服务商预设自动填地址、配置持久化、知识库存取与注入
+ *  3) 结果区：浏览态是 div（可滚动），编辑态切 textarea，改完写回
+ *  4) 上下翻页按钮真的改了 scrollTop
+ *  5) 导出/另存读到的是编辑后的内容
  */
 const fs = require("fs");
 const path = require("path");
@@ -18,15 +19,18 @@ function check(name, cond, extra) {
   else { failed++; console.log("  FAIL  " + name + (extra ? "  -> " + extra : "")); }
 }
 
-// ---- 记录发出的请求，用于验证 system prompt 注入 ----
 let capturedBody = null;
-let copiedText = null;
 let lastSaved = null;
 
 const dom = new JSDOM(html, { runScripts: "outside-only", url: "http://localhost/" });
 const w = dom.window;
 
-// fetch 打桩
+// jsdom 不会去取 <link rel=stylesheet>，把样式表内联进去，getComputedStyle 才有值
+const css = fs.readFileSync(path.join(PLUGIN, "styles.css"), "utf8");
+const styleEl = w.document.createElement("style");
+styleEl.textContent = css;
+w.document.head.appendChild(styleEl);
+
 w.fetch = function (url, opts) {
   capturedBody = JSON.parse(opts.body);
   const payload = { choices: [{ message: { content: '{"id":"f_special_test","title":"测试"}' } }] };
@@ -35,32 +39,31 @@ w.fetch = function (url, opts) {
     text: function () { return Promise.resolve(JSON.stringify(payload)); }
   });
 };
-// alert 等
-w.navigator.clipboard = { writeText: function (t) { copiedText = t; return Promise.resolve(); } };
 
-// UXP 桩
-w.require = function (name) {
-  if (name === "uxp") {
-    return { storage: { formats: { utf8: "utf8" }, localFileSystem: {
-      getFileForSaving: function (suggested) {
-        return Promise.resolve({
-          name: suggested,
-          write: function (content) { lastSaved = content; return Promise.resolve(); }
-        });
-      },
-      getEntryWithUrl: function () { return Promise.reject(new Error("n/a")); },
-      getFolder: function () { return Promise.reject(new Error("n/a")); }
-    } } };
-  }
-  if (name === "clipboard") return { copy: function (t) { copiedText = t; } };
-  if (name === "photoshop") throw new Error("no ps");
-  throw new Error("unknown " + name);
-};
+function makeRequire() {
+  return function (name) {
+    if (name === "uxp") {
+      return { storage: { formats: { utf8: "utf8" }, localFileSystem: {
+        getFileForSaving: function (suggested) {
+          return Promise.resolve({
+            name: suggested,
+            write: function (content) { lastSaved = content; return Promise.resolve(); }
+          });
+        },
+        getEntryWithUrl: function () { return Promise.reject(new Error("n/a")); },
+        getFolder: function () { return Promise.reject(new Error("n/a")); }
+      } } };
+    }
+    if (name === "clipboard") throw new Error("clipboard unavailable");
+    if (name === "photoshop") throw new Error("no ps");
+    throw new Error("unknown " + name);
+  };
+}
+w.require = makeRequire();
 
 const errors = [];
 w.addEventListener("error", function (e) { errors.push(e.message); });
 
-// 执行插件脚本
 try {
   w.eval(js);
 } catch (e) {
@@ -68,138 +71,141 @@ try {
   failed++;
 }
 
-console.log("\n[1] 初始化");
 const d = w.document;
+
+console.log("\n[1] 初始化");
 check("无未捕获错误", errors.length === 0, errors.join("; "));
 check("错误条隐藏", d.getElementById("errBar").classList.contains("hidden"));
 check("首屏为配置页", !d.getElementById("viewSetup").classList.contains("hidden"));
-check("主界面隐藏", d.getElementById("viewMain").classList.contains("hidden"));
+check("复制按钮已移除", d.getElementById("copy") === null);
 
 console.log("\n[2] 服务商预设自动填地址");
 d.querySelector('#providerPreset .opt[data-value="deepseek"]').click();
-check("baseUrl 已自动填入", d.getElementById("baseUrl").value === "https://api.deepseek.com/v1",
-  d.getElementById("baseUrl").value);
-check("model 已自动填入", d.getElementById("model").value === "deepseek-chat",
-  d.getElementById("model").value);
-check("预设高亮", d.querySelector('#providerPreset .opt[data-value="deepseek"]').classList.contains("active"));
+check("baseUrl 已自动填入", d.getElementById("baseUrl").value === "https://api.deepseek.com/v1");
+check("model 已自动填入", d.getElementById("model").value === "deepseek-chat");
 
 console.log("\n[3] 保存配置进入主界面");
 d.getElementById("apiKey").value = "sk-user-own-key";
 d.getElementById("btnEnter").click();
 check("进入主界面", !d.getElementById("viewMain").classList.contains("hidden"));
-check("配置页隐藏", d.getElementById("viewSetup").classList.contains("hidden"));
-check("摘要显示", d.getElementById("cfgSummary").textContent.indexOf("deepseek-chat") >= 0,
-  d.getElementById("cfgSummary").textContent);
+check("摘要显示", d.getElementById("cfgSummary").textContent.indexOf("deepseek-chat") >= 0);
 
 console.log("\n[4] 知识库");
 d.getElementById("btnKB").click();
 check("进入知识库页", !d.getElementById("viewKB").classList.contains("hidden"));
 d.getElementById("kbText").value = "我的固定要求：特效一律写实3DCG；不要过度磨皮";
 d.getElementById("kbSave").click();
-check("保存成功提示", d.getElementById("kbStatus").classList.contains("ok"),
-  d.getElementById("kbStatus").textContent);
+check("保存成功提示", d.getElementById("kbStatus").classList.contains("ok"));
 check("已写入 localStorage", w.localStorage.getItem("cos_effect_prompt_kb_v1").indexOf("3DCG") >= 0);
 d.getElementById("kbBack").click();
 check("返回主界面", !d.getElementById("viewMain").classList.contains("hidden"));
 
-console.log("\n[5] 生成（验证知识库注入 + 输出区可编辑）");
+console.log("\n[5] 生成 + 知识库注入");
 d.getElementById("request").value = "加个金色魔法阵";
 d.getElementById("gen").click();
 
 setTimeout(function () {
-  const out = d.getElementById("output");
-  check("输出区是 TEXTAREA（可编辑）", out.tagName === "TEXTAREA", out.tagName);
-  check("输出内容已写入", out.value.indexOf("f_special_test") >= 0, out.value);
-  check("自动增高 rows >= 12", out.rows >= 12, "rows=" + out.rows);
+  const view = d.getElementById("outputView");
+  const ta = d.getElementById("output");
+
+  check("浏览态是 DIV", view.tagName === "DIV", view.tagName);
+  check("浏览态显示内容", view.textContent.indexOf("f_special_test") >= 0, view.textContent);
+  check("empty 标记已移除", !view.classList.contains("empty"));
+  check("编辑态默认隐藏", ta.classList.contains("hidden"));
 
   const sys = capturedBody.messages[0].content;
   check("system prompt 含知识库标题", sys.indexOf("用户知识库") >= 0);
   check("system prompt 含知识库正文", sys.indexOf("不要过度磨皮") >= 0);
   check("system prompt 含技能核心", sys.indexOf("Cosplay 人像后期综合处理师") >= 0);
 
-  console.log("\n[5b] 手动编辑结果后，导出内容跟着变");
-  lastSaved = null;
-  out.value = '{"id":"f_special_edited","title":"我改过的"}';
-  d.getElementById("save").click();
-  out.value = '{"id":"f_special_test","title":"测试"}';  // 还原，后面还要用
+  console.log("\n[5b] 滚动：固定高度 + overflow，翻页按钮改 scrollTop");
+  const cs = w.getComputedStyle(view);
+  check("结果区设了固定 height", cs.height && cs.height !== "auto", cs.height);
+  check("overflow-y 为 auto", cs.overflowY === "auto", cs.overflowY);
+  check("CSS 里有 .output-view 规则",
+    /\.output-view\s*\{[^}]*height:\s*280px/.test(
+      fs.readFileSync(path.join(PLUGIN, "styles.css"), "utf8")));
 
-  // saveAs 是异步的，要等它落地再断言
-  setTimeout(function () {
-  check("另存取的是编辑后的内容",
-    lastSaved && lastSaved.indexOf("f_special_edited") >= 0, String(lastSaved).slice(0, 50));
+  // jsdom 不做排版，手动给出尺寸来验证按钮逻辑
+  Object.defineProperty(view, "clientHeight", { value: 280, configurable: true });
+  Object.defineProperty(view, "scrollHeight", { value: 1200, configurable: true });
+  view.scrollTop = 0;
 
-  console.log("\n[6] 复制按钮");
-  copiedText = null;
-  d.getElementById("copy").click();
-  setTimeout(function () {
-    check("复制到了输出区内容", copiedText && copiedText.indexOf("f_special_test") >= 0,
-      String(copiedText).slice(0, 60));
-    check("复制状态提示成功", d.getElementById("status").classList.contains("ok"),
-      d.getElementById("status").textContent);
-    check("状态里报了字符数", /\d+ 字符/.test(d.getElementById("status").textContent),
-      d.getElementById("status").textContent);
+  d.getElementById("btnScrollDown").click();
+  check("↓ 向下 使 scrollTop 增加", view.scrollTop > 0, "scrollTop=" + view.scrollTop);
+  const afterDown = view.scrollTop;
+  d.getElementById("btnScrollUp").click();
+  check("↑ 向上 使 scrollTop 减少", view.scrollTop < afterDown,
+    afterDown + " -> " + view.scrollTop);
 
-    console.log("\n[6b] 剪贴板全挂时的兜底：应全选内容并提示 Ctrl+C");
-    w.require = function (name) {
-      if (name === "uxp") return { storage: { formats: { utf8: "utf8" }, localFileSystem: {
-        getFileForSaving: function () { return Promise.resolve(null); },
-        getEntryWithUrl: function () { return Promise.reject(new Error("n/a")); },
-        getFolder: function () { return Promise.reject(new Error("n/a")); } } } };
-      if (name === "clipboard") throw new Error("clipboard unavailable");
-      if (name === "photoshop") throw new Error("no ps");
-      throw new Error("unknown " + name);
-    };
-    // 重新加载脚本，模拟"剪贴板模块不存在"的环境
-    const dom2 = new JSDOM(html, { runScripts: "outside-only", url: "http://localhost/" });
-    const w2 = dom2.window;
-    w2.localStorage.setItem("cos_effect_prompt_cfg_v1", JSON.stringify({
-      baseUrl: "https://api.deepseek.com/v1", apiKey: "sk-x",
-      model: "deepseek-chat", targetModel: "nanobanana", exportDir: ""
-    }));
-    w2.navigator.clipboard = undefined;
-    w2.document.execCommand = function () { return false; };  // 全挂
-    w2.require = w.require;
-    w2.eval(js);
-    const o2 = w2.document.getElementById("output");
-    o2.value = "测试兜底内容";
-    w2.document.getElementById("copy").click();
-    setTimeout(function () {
-      const st = w2.document.getElementById("status").textContent;
-      check("兜底提示用户按 Ctrl+C", st.indexOf("Ctrl+C") >= 0, st);
-      check("兜底时内容已全选",
-        o2.selectionStart === 0 && o2.selectionEnd === o2.value.length,
-        o2.selectionStart + "-" + o2.selectionEnd);
-
-      runRest();
-    }, 30);
-  }, 30);
-  }, 30);   // 5b 的等待
-
-  function runRest() {
-  console.log("\n[6c] 展开全部");
-  const o = d.getElementById("output");
+  console.log("\n[5c] 展开全部 / 收起");
   d.getElementById("btnExpand").click();
-  check("展开后加上 expanded", o.classList.contains("expanded"));
+  check("加上 expanded", view.classList.contains("expanded"));
   check("按钮变为收起", d.getElementById("btnExpand").textContent === "收起");
   d.getElementById("btnExpand").click();
-  check("再点恢复", !o.classList.contains("expanded"));
+  check("再点恢复", !view.classList.contains("expanded"));
+  check("按钮变回展开全部", d.getElementById("btnExpand").textContent === "展开全部");
 
-  console.log("\n[7] 继续优化 / 撤销");
+  console.log("\n[5d] 编辑模式：切换 / 写回 / 导出取改后内容");
+  const btnEdit = d.getElementById("btnEdit");
+  btnEdit.click();
+  check("切到编辑态：textarea 显示", !ta.classList.contains("hidden"));
+  check("切到编辑态：div 隐藏", view.classList.contains("hidden"));
+  check("编辑态预填了内容", ta.value.indexOf("f_special_test") >= 0);
+  check("按钮变为完成", btnEdit.textContent === "完成");
+
+  lastSaved = null;
+  ta.value = '{"id":"f_special_edited","title":"我改过的"}';
+  d.getElementById("save").click();          // 编辑态下直接另存
+  ta.value = '{"id":"f_special_edited","title":"我改过的"}';
+
+  setTimeout(function () {
+    check("另存取的是编辑后的内容",
+      lastSaved && lastSaved.indexOf("f_special_edited") >= 0, String(lastSaved).slice(0, 50));
+
+    btnEdit.click();  // 完成
+    check("完成后回到浏览态", !view.classList.contains("hidden"));
+    check("编辑框重新隐藏", ta.classList.contains("hidden"));
+    check("按钮变回编辑", btnEdit.textContent === "编辑");
+    check("改动已写回浏览区", view.textContent.indexOf("f_special_edited") >= 0, view.textContent);
+
+    console.log("\n[5e] 编辑后再导出到目录，内容同步");
+    const edited = d.getElementById("outputView").textContent;
+    check("浏览区与编辑内容一致", edited.indexOf("f_special_edited") >= 0);
+
+    runRest();
+  }, 30);
+
+  function runRest() {
+  console.log("\n[6] 继续优化 / 撤销");
   d.getElementById("refine").value = "改成蓝色";
   d.getElementById("btnRefine").click();
   setTimeout(function () {
-    check("优化后仍有内容", d.getElementById("output").value.indexOf("f_special_test") >= 0);
+    check("优化后内容已刷新", d.getElementById("outputView").textContent.indexOf("f_special_test") >= 0,
+      d.getElementById("outputView").textContent);
     check("优化框已清空", d.getElementById("refine").value === "");
     check("优化请求带上了修改要求",
       JSON.stringify(capturedBody.messages).indexOf("改成蓝色") >= 0);
+
     d.getElementById("btnRevert").click();
     check("撤销回到上一版", d.getElementById("status").textContent.indexOf("撤销") >= 0,
       d.getElementById("status").textContent);
 
-    console.log("\n[8] 历史记录");
-    check("历史计数 > 0", d.getElementById("histCount").textContent !== "0",
-      d.getElementById("histCount").textContent);
+    console.log("\n[7] 历史记录");
+    check("历史计数 > 0", d.getElementById("histCount").textContent !== "0");
     check("历史条目已渲染", d.querySelectorAll("#historyList .hist-item").length > 0);
+
+    console.log("\n[8] 历史回填 / 新对话");
+    d.querySelectorAll("#historyList .hist-item")[0].click();
+    check("点历史后内容回填",
+      d.getElementById("outputView").textContent.indexOf("f_special_test") >= 0);
+    check("回填后回到浏览态",
+      !d.getElementById("outputView").classList.contains("hidden"));
+
+    d.getElementById("btnNewChat").click();
+    check("新对话清空结果区", d.getElementById("outputView").textContent.indexOf("f_special") < 0);
+    check("新对话后 empty 标记回来",
+      d.getElementById("outputView").classList.contains("empty"));
 
     console.log("\n=========================================");
     console.log("通过 " + passed + " / 失败 " + failed);

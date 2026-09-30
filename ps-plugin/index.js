@@ -27,64 +27,12 @@ try {
 try { clipboard = require("clipboard"); } catch (e) { /* 剪贴板不可用：走兜底 */ }
 try { photoshop = require("photoshop"); } catch (e) { /* 非 PS 环境 */ }
 
-/* 选中结果框里的全部文本（最后一道兜底：用户按一次 Ctrl+C 即可） */
-function selectAllOutput() {
-  try {
-    const el = document.getElementById("output");
-    if (!el) return false;
-    el.focus();
-    if (typeof el.select === "function") { el.select(); return true; }
-    if (typeof el.setSelectionRange === "function") {
-      el.setSelectionRange(0, el.value.length);
-      return true;
-    }
-  } catch (e) { /* 忽略 */ }
-  return false;
-}
-
-/* 多层剪贴板兜底，返回给用户看的文案。
+/* 剪贴板：各版本 Photoshop 的 UXP 剪贴板权限差异太大（require("clipboard")
+ * 可能不存在，navigator.clipboard 可能存在但没有写权限），复制按钮实际不可用，
+ * 已从界面移除。需要取走内容请用「导出到目录 / 另存为…」，
+ * 或点「编辑」进入 textarea 后用 Ctrl+A、Ctrl+C。
  *
- * 关键：每一层都必须"确认成功"才能返回。上一版在这里踩过坑——
- * navigator.clipboard.writeText() 返回的是 Promise，没 await 就 return true，
- * 于是 UXP 里明明没有剪贴板写权限却提示"已复制"，实际什么都没进去。
- */
-async function copyToClipboard(text) {
-  // 1) UXP 剪贴板模块（面板里最可靠的一条路）
-  if (clipboard && typeof clipboard.copy === "function") {
-    try {
-      clipboard.copy(text);
-      return "已复制到剪贴板";
-    } catch (e) { /* 继续 */ }
-  }
-
-  // 2) 浏览器剪贴板：必须 await，没有权限时会 reject
-  try {
-    if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
-      await navigator.clipboard.writeText(text);
-      return "已复制到剪贴板";
-    }
-  } catch (e) { /* 继续 */ }
-
-  // 3) execCommand 兜底
-  try {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.style.position = "fixed";
-    ta.style.left = "-9999px";
-    ta.style.top = "0";
-    document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
-    const ok = !!(document.execCommand && document.execCommand("copy"));
-    document.body.removeChild(ta);
-    if (ok) return "已复制到剪贴板";
-  } catch (e) { /* 继续 */ }
-
-  // 4) 全选结果框，让用户按一次 Ctrl+C
-  if (selectAllOutput()) return "内容已全选，请按一次 Ctrl+C";
-
-  return "";
-}
+ * 这里保留 clipboard 的加载（上面 try/catch 那段）但不再对外暴露复制功能。 */
 
 /* ============================================================
  * 一、内置技能知识（system prompt）
@@ -334,58 +282,108 @@ function updateCfgSummary() {
 }
 
 /* ============================================================
- * 三、输出区（可编辑 textarea + 自动增高）
+ * 三、输出区：浏览态（可滚动 div） / 编辑态（textarea）
  *
- * 兼顾两件事：
- *   - 可编辑 —— 用户能直接在结果上手动改字，改完再复制/导出
- *   - 看得全 —— UXP 里 textarea 内部滚动不好使，所以按内容行数
- *     自动调 rows 把框撑高，让外层 .app 去滚；超出上限（MAX_ROWS）
- *     后由 textarea 自己滚 + 「展开全部」按钮放开高度
+ * 为什么分两态：UXP 里 div 的 overflow 滚动可靠，textarea 的不可靠。
+ * 所以默认用 div 浏览，需要手改时才切成 textarea，改完写回。
+ *
+ * 看全的三条路（依次兜底）：
+ *   1) 框内原生滚动条（固定 height + overflow-y:auto）
+ *   2) 「↑ 向上 / ↓ 向下」按钮直接改 scrollTop —— 滚动条拖不动时也能翻
+ *   3) 「展开全部」放开高度上限，交给外层面板滚动
  * ============================================================ */
 
-const MIN_ROWS = 12;   // 初始高度
-const MAX_ROWS = 34;   // 自动增高上限，超过就靠内部滚动
-const WRAP_COLS = 52;  // 窄面板下一行大约能放多少字符（用于估算折行）
+let currentOutput = "";
+let editingOutput = false;
 
 function setOutput(text) {
-  const el = document.getElementById("output");
-  if (!el) return;
-  el.value = text || "";
-  el.classList.remove("expanded");
-  autoGrowOutput();
+  currentOutput = text || "";
+  editingOutput = false;
+
+  const view = document.getElementById("outputView");
+  if (view) {
+    view.textContent = currentOutput;
+    view.classList.remove("expanded");
+    if (currentOutput) view.classList.remove("empty");
+    else view.classList.add("empty");
+    try { view.scrollTop = 0; } catch (e) { /* 忽略 */ }
+  }
+
+  const ta = document.getElementById("output");
+  if (ta) ta.value = currentOutput;
+
+  const exp = document.getElementById("btnExpand");
+  if (exp) exp.textContent = "展开全部";
+
+  applyEditMode();
+  updateOutHint();
 }
 
-/* 直接读 DOM：用户手动改过的内容也能被复制/导出/另存读到 */
+/* 读结果：编辑态取 textarea，浏览态取缓存（含用户改过的内容） */
 function getOutput() {
-  const el = document.getElementById("output");
-  return el ? el.value : "";
+  if (editingOutput) {
+    const ta = document.getElementById("output");
+    if (ta) return ta.value;
+  }
+  return currentOutput;
 }
 
-/* 按内容估算需要的行数（含折行），撑高输入框 */
-function autoGrowOutput() {
-  const el = document.getElementById("output");
-  if (!el) return;
-  const v = el.value || "";
+function applyEditMode() {
+  const view = document.getElementById("outputView");
+  const ta = document.getElementById("output");
+  const btn = document.getElementById("btnEdit");
+  if (!view || !ta) return;
 
-  let lines = 1;
-  if (v) {
-    const parts = v.split(/\r?\n/);
-    lines = 0;
-    for (let i = 0; i < parts.length; i++) {
-      lines += Math.max(1, Math.ceil(parts[i].length / WRAP_COLS));
-    }
+  if (editingOutput) {
+    view.classList.add("hidden");
+    ta.classList.remove("hidden");
+    if (btn) btn.textContent = "完成";
+    try { ta.focus(); } catch (e) { /* 忽略 */ }
+  } else {
+    ta.classList.add("hidden");
+    view.classList.remove("hidden");
+    if (btn) btn.textContent = "编辑";
   }
+}
 
-  const rows = Math.max(MIN_ROWS, Math.min(lines + 1, MAX_ROWS));
-  el.rows = rows;
-
+/* 提示语：告诉用户当前能不能滚、要不要展开 */
+function updateOutHint() {
   const hint = document.getElementById("outHint");
-  if (hint) {
-    const over = lines + 1 > MAX_ROWS;
-    hint.textContent = over
-      ? "内容较长，框内可上下滚动；点「展开全部」可一次看全"
-      : "结果可直接编辑，改完再复制或导出";
+  const view = document.getElementById("outputView");
+  if (!hint || !view) return;
+
+  if (editingOutput) {
+    hint.textContent = "编辑模式：直接改内容，改完点「完成」写回结果区";
+    return;
   }
+  if (!currentOutput) {
+    hint.textContent = "结果区可上下滚动浏览全文";
+    return;
+  }
+
+  // clientHeight / scrollHeight 在部分环境取不到，取不到就当不溢出
+  const sh = view.scrollHeight || 0;
+  const ch = view.clientHeight || 0;
+  const over = sh > 0 && ch > 0 && sh > ch + 4;
+
+  hint.textContent = over
+    ? "内容较长：可拖框内滚动条，或用「↑ 向上 / ↓ 向下」翻看，也可「展开全部」"
+    : "内容已全部显示；点「展开全部」可再放宽高度";
+}
+
+/* 上下翻页：直接改 scrollTop，不依赖滚动条可拖动 */
+function scrollOutput(dir) {
+  const view = document.getElementById("outputView");
+  if (!view) return;
+  if (view.classList.contains("expanded")) {
+    setStatus("已展开全部内容，请用面板整体滚动条浏览", "ok");
+    return;
+  }
+  const step = Math.max(80, Math.round((view.clientHeight || 280) * 0.85));
+  try {
+    view.scrollTop = (view.scrollTop || 0) + dir * step;
+  } catch (e) { /* 忽略 */ }
+  updateOutHint();
 }
 
 /* ============================================================
@@ -400,7 +398,7 @@ function showView(name) {
     if (id === name) el.classList.remove("hidden");
     else el.classList.add("hidden");
   });
-  if (name === "viewMain") { updateCfgSummary(); autoGrowOutput(); }
+  if (name === "viewMain") { updateCfgSummary(); updateOutHint(); }
   if (name === "viewKB") {
     document.getElementById("kbText").value = loadKB();
     setKbStatus(loadKB().trim() ? "知识库已保存内容" : "知识库为空", "ok");
@@ -925,46 +923,60 @@ function init() {
     setStatus("已撤销，回到第 " + outputStack.length + " 版", "ok");
   });
 
-  /* ---------- 复制（多层兜底，带结果反馈）---------- */
-  document.getElementById("copy").addEventListener("click", async function () {
-    const v = getOutput();
-    if (!v.trim()) { setStatus("没有可复制的内容", "err"); return; }
+  /* ---------- 编辑 / 完成：浏览态(div) 与 编辑态(textarea) 互切 ---------- */
+  document.getElementById("btnEdit").addEventListener("click", function () {
+    if (!currentOutput.trim()) { setStatus("还没有可编辑的内容", "err"); return; }
 
-    const btn = this;
-    const old = btn.textContent;
-    const msg = await copyToClipboard(v);
-
-    if (msg === "已复制到剪贴板") {
-      setStatus("已复制到剪贴板（" + v.length + " 字符）", "ok");
-      btn.textContent = "已复制 ✓";
-      setTimeout(function () { btn.textContent = old; }, 1500);
-    } else if (msg) {
-      // 走到全选兜底：内容已选中，用户按一次 Ctrl+C 就行
-      setStatus(msg, "err");
-      btn.textContent = "按 Ctrl+C";
-      setTimeout(function () { btn.textContent = old; }, 2500);
+    if (!editingOutput) {
+      // 进入编辑：把当前内容灌进 textarea
+      const ta = document.getElementById("output");
+      ta.value = currentOutput;
+      editingOutput = true;
+      applyEditMode();
+      updateOutHint();
+      setStatus("编辑模式：改完点「完成」写回结果区", "ok");
     } else {
-      setStatus("复制失败：请手动在结果框里选中内容后按 Ctrl+C", "err");
+      // 完成编辑：写回浏览区
+      const ta = document.getElementById("output");
+      currentOutput = ta.value;
+      editingOutput = false;
+
+      const view = document.getElementById("outputView");
+      view.textContent = currentOutput;
+      if (currentOutput) view.classList.remove("empty");
+      else view.classList.add("empty");
+      try { view.scrollTop = 0; } catch (e) { /* 忽略 */ }
+
+      applyEditMode();
+      updateOutHint();
+      setStatus("修改已写回结果区", "ok");
     }
+  });
+
+  /* ---------- 上下翻页 ---------- */
+  document.getElementById("btnScrollUp").addEventListener("click", function () {
+    scrollOutput(-1);
+  });
+  document.getElementById("btnScrollDown").addEventListener("click", function () {
+    scrollOutput(1);
   });
 
   /* ---------- 展开全部 / 收起 ---------- */
   document.getElementById("btnExpand").addEventListener("click", function () {
-    const el = document.getElementById("output");
-    if (el.classList.contains("expanded")) {
-      el.classList.remove("expanded");
-      autoGrowOutput();
+    const view = document.getElementById("outputView");
+    if (view.classList.contains("expanded")) {
+      view.classList.remove("expanded");
       this.textContent = "展开全部";
     } else {
-      el.classList.add("expanded");
-      el.rows = Math.max(el.rows, 34);
+      view.classList.add("expanded");
       this.textContent = "收起";
     }
+    updateOutHint();
   });
 
-  /* 用户手动改内容后同步高度与提示 */
+  /* 编辑态输入时刷新提示 */
   document.getElementById("output").addEventListener("input", function () {
-    autoGrowOutput();
+    updateOutHint();
   });
 
   /* ---------- 导出 / 另存 ---------- */
