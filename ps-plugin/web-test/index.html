@@ -5,8 +5,10 @@
   <title>COS 提示词生成器 — 浏览器测试版</title>
   <link rel="stylesheet" href="../styles.css" />
   <style>
-    /* 浏览器测试版的额外样式 */
+    /* 浏览器测试版：恢复网页的正常页面滚动（面板版的滚动容器会限制高度） */
+    html, body { height: auto; overflow: visible; }
     body { max-width: 560px; margin: 0 auto; padding: 16px; }
+    .app { height: auto; overflow: visible; }
     .banner {
       background: #2f2a1f; border: 1px solid #5a4a24; border-left: 3px solid #c9a227;
       color: #c9bd9a; font-size: 11px; padding: 8px 10px; border-radius: 3px;

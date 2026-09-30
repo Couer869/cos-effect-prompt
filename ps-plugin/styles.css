@@ -2,9 +2,15 @@
 
 * { box-sizing: border-box; }
 
-body {
+/* 面板整体：固定高度 + 内部滚动（UXP 面板必须这么做，否则内容会被裁掉） */
+html, body {
+  height: 100%;
   margin: 0;
   padding: 0;
+  overflow: hidden;
+}
+
+body {
   background: #232323;
   color: #d6d6d6;
   font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
@@ -12,7 +18,22 @@ body {
   user-select: none;
 }
 
-.app { padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+/* 滚动容器：整页内容在此上下滑动 */
+.app {
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  box-sizing: border-box;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* 卡片不被压缩，保证可滚动 */
+.card { flex-shrink: 0; }
+.hdr { flex-shrink: 0; }
 
 /* 头部 */
 .hdr { padding: 2px 0 6px; }
@@ -124,7 +145,8 @@ body {
   margin-left: 4px;
 }
 
-.history { max-height: 190px; overflow-y: auto; }
+/* 历史列表不单独设高度：跟随整页滚动，避免 UXP 里嵌套滚动异常 */
+.history { overflow: visible; }
 
 .history .empty { color: #6f6f6f; font-size: 11px; padding: 6px 2px; }
 
