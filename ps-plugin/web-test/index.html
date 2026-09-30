@@ -5,9 +5,9 @@
   <title>COS 提示词生成器 — 浏览器测试版</title>
   <link rel="stylesheet" href="../styles.css" />
   <style>
-    /* 浏览器测试版：恢复网页的正常页面滚动（面板版的滚动容器会限制高度） */
+    /* 浏览器测试版：恢复正常网页滚动（面板版用固定高度滚动容器） */
     html, body { height: auto; overflow: visible; }
-    body { max-width: 560px; margin: 0 auto; padding: 16px; }
+    body { max-width: 620px; margin: 0 auto; padding: 16px; }
     .app { height: auto; overflow: visible; }
     .banner {
       background: #2f2a1f; border: 1px solid #5a4a24; border-left: 3px solid #c9a227;
@@ -20,10 +20,7 @@
 </head>
 <body>
 
-  <!-- ============================================================
-       UXP 环境桩：让插件的 index.js 能直接在浏览器里运行
-       （复用同一份逻辑代码，避免两份实现产生偏差）
-       ============================================================ -->
+  <!-- UXP 环境桩：让插件的 index.js 能直接在浏览器运行（复用同一份逻辑） -->
   <script>
     window.require = function (name) {
       if (name === "uxp") {
@@ -31,7 +28,6 @@
           storage: {
             formats: { utf8: "utf8", binary: "binary" },
             localFileSystem: {
-              // 浏览器里把"保存文件"实现为浏览器下载
               getFileForSaving: function (suggested) {
                 return Promise.resolve({
                   name: suggested,
@@ -47,7 +43,6 @@
                   }
                 });
               },
-              // 浏览器安全限制：不支持直接写任意目录
               getEntryWithUrl: function () {
                 return Promise.reject(new Error("浏览器测试版不支持直接写目录，请用「另存为…」"));
               }
@@ -67,32 +62,26 @@
           }
         };
       }
-      if (name === "photoshop") {
-        throw new Error("浏览器环境无 Photoshop"); // 让 index.js 的 try/catch 捕获
-      }
+      if (name === "photoshop") throw new Error("浏览器环境无 Photoshop");
       throw new Error("unknown module: " + name);
     };
   </script>
 
+  <div class="banner">
+    <b>浏览器测试版</b> — 与 PS 插件共用同一份 <code>index.js</code>，用于在不装 Photoshop 时验证 API 与提示词效果。<br />
+    「导出到目录」在浏览器不可用，请用「另存为…」（触发浏览器下载）。
+  </div>
+
   <div class="app">
 
-    <div class="banner">
-      <b>浏览器测试版</b> — 与 PS 插件共用同一份 <code>index.js</code> 逻辑，用于在不装 Photoshop 的情况下验证
-      API 连通性与提示词效果。<br />
-      注意：「导出到目录」在浏览器不可用（安全限制），请用「另存为…」（会触发浏览器下载）。
-    </div>
+    <!-- ===== 视图 1：首次配置 ===== -->
+    <div id="viewSetup" class="view">
+      <header class="hdr">
+        <div class="hdr-title">COS 后期提示词生成器</div>
+        <div class="hdr-sub">首次使用 · 填写你的 API 配置</div>
+      </header>
 
-    <header class="hdr">
-      <div class="hdr-title">COS 后期提示词生成器</div>
-      <div class="hdr-sub">填你自己的 API，生成专业后期提示词</div>
-    </header>
-
-    <section class="card">
-      <div class="card-head clickable" id="settingsToggle">
-        <span>API 与导出设置</span>
-        <span class="chev" id="chev">▾</span>
-      </div>
-      <div class="card-body" id="settingsBody">
+      <section class="card">
         <label class="lbl">接口地址（Base URL）</label>
         <input id="baseUrl" class="inp" placeholder="https://api.deepseek.com/v1" />
 
@@ -102,7 +91,7 @@
         <label class="lbl">模型名</label>
         <input id="model" class="inp" placeholder="deepseek-chat" />
 
-        <label class="lbl">目标模型（输出格式）</label>
+        <label class="lbl">默认输出格式</label>
         <select id="targetModel" class="inp">
           <option value="nanobanana">Nano Banana（插件预设信封）</option>
           <option value="midjourney">Midjourney（自然语言 + 参数）</option>
@@ -110,65 +99,96 @@
           <option value="novelai">NovelAI（Danbooru 标签）</option>
         </select>
 
-        <label class="lbl">导出目录（浏览器测试版不可用）</label>
-        <input id="exportDir" class="inp" placeholder="（PS 插件中填写，如 C:/Users/你/Downloads）" />
-
-        <div class="row">
-          <button id="saveCfg" class="btn btn-sm">保存设置</button>
-          <button id="clearCfg" class="btn btn-sm btn-ghost">清除</button>
-        </div>
+        <label class="lbl">导出目录（可选）</label>
+        <input id="exportDir" class="inp" placeholder="C:/Users/你的用户名/Downloads" />
 
         <div class="notice">
           <div class="notice-title">安全说明</div>
           <div>· 本工具<b>不内置任何密钥</b>，必须由你填入自己的 API Key</div>
-          <div>· Key 只保存在你本机浏览器，除你指定的接口地址外<b>不会发往任何第三方</b></div>
+          <div>· 配置<b>只保存在你本机</b>，除你指定的接口地址外不会发往任何第三方</div>
+          <div>· 配置过一次后，下次打开直接进入主界面</div>
         </div>
-      </div>
-    </section>
+      </section>
 
-    <section class="card">
-      <label class="lbl">你的需求</label>
-      <textarea id="request" class="ta" rows="4"
-        placeholder="例：给这张 COS 照脚下加一个金色魔法阵，CG 质感，明显一点"></textarea>
+      <button id="btnEnter" class="btn btn-primary btn-block">保存并进入 →</button>
+      <div id="setupStatus" class="status"></div>
+    </div>
 
-      <div class="chips">
-        <span class="chip" data-tpl="给这张照片脚下加一个金色魔法阵，CG 质感，明显一点">加魔法阵</span>
-        <span class="chip" data-tpl="修脸自然一点，祛痘印和黑眼圈，头发加点亮晶晶">修脸+亮晶晶发</span>
-        <span class="chip" data-tpl="背景换成赛博朋克雨夜，冷色调，霓虹灯光">赛博夜景</span>
-        <span class="chip" data-tpl="瘦腰，加沙漏身材，衣服绷紧一点">身材塑形</span>
-        <span class="chip" data-tpl="想要王家卫电影那种感觉，霓虹撞色，雨夜街道">电影风格</span>
-      </div>
+    <!-- ===== 视图 2：主界面 ===== -->
+    <div id="viewMain" class="view hidden">
+      <header class="hdr hdr-row">
+        <div class="hdr-left">
+          <div class="hdr-title">COS 提示词</div>
+          <div class="hdr-sub" id="cfgSummary">—</div>
+        </div>
+        <div class="hdr-actions">
+          <button id="btnNewChat" class="btn btn-sm btn-ghost">新对话</button>
+          <button id="btnSettings" class="btn btn-sm btn-ghost">设置</button>
+        </div>
+      </header>
 
-      <div class="row">
-        <button id="gen" class="btn btn-primary">生成提示词</button>
-        <button id="useDoc" class="btn btn-ghost btn-sm">带上文档信息</button>
-      </div>
-      <div id="status" class="status"></div>
-    </section>
+      <section class="card">
+        <label class="lbl">输出格式</label>
+        <select id="targetModelMain" class="inp">
+          <option value="nanobanana">Nano Banana（插件预设信封）</option>
+          <option value="midjourney">Midjourney（自然语言 + 参数）</option>
+          <option value="comfyui">ComfyUI / SD（tag + 权重 + 参数）</option>
+          <option value="novelai">NovelAI（Danbooru 标签）</option>
+        </select>
 
-    <section class="card">
-      <div class="card-head">
-        <span>生成结果</span>
-        <span class="card-actions">
-          <button id="copy" class="btn btn-sm">复制</button>
-          <button id="exportQuick" class="btn btn-sm">导出到目录</button>
-          <button id="save" class="btn btn-sm btn-ghost">另存为…</button>
-        </span>
-      </div>
-      <textarea id="output" class="ta out" rows="12" placeholder="生成结果会显示在这里…"></textarea>
-    </section>
+        <label class="lbl">需求描述</label>
+        <textarea id="request" class="ta ta-lg" rows="8"
+          placeholder="把你想做的后期处理描述清楚，例如：&#10;· 给这张 COS 照脚下加一个金色魔法阵，CG 质感，明显一点&#10;· 修脸自然一点，祛痘印和黑眼圈，头发加点亮晶晶&#10;· 背景换成赛博朋克雨夜，冷色调，霓虹灯光"></textarea>
 
-    <section class="card">
-      <div class="card-head">
-        <span>历史记录 <span id="histCount" class="count">0</span></span>
-        <span class="card-actions">
-          <button id="clearHistory" class="btn btn-sm btn-ghost">清空</button>
-        </span>
-      </div>
-      <div id="historyList" class="history">
-        <div class="empty">暂无记录</div>
-      </div>
-    </section>
+        <div class="chips">
+          <span class="chip" data-tpl="给这张照片脚下加一个金色魔法阵，CG 质感，明显一点">加魔法阵</span>
+          <span class="chip" data-tpl="修脸自然一点，祛痘印和黑眼圈，头发加点亮晶晶">修脸+亮晶晶发</span>
+          <span class="chip" data-tpl="背景换成赛博朋克雨夜，冷色调，霓虹灯光">赛博夜景</span>
+          <span class="chip" data-tpl="瘦腰，加沙漏身材，衣服绷紧一点">身材塑形</span>
+          <span class="chip" data-tpl="想要王家卫电影那种感觉，霓虹撞色，雨夜街道">电影风格</span>
+          <span class="chip" data-tpl="想要写实 3DCG 风格，电影级构图，大光圈虚化">3DCG风格</span>
+        </div>
+
+        <div class="row">
+          <button id="gen" class="btn btn-primary">生成提示词</button>
+          <button id="useDoc" class="btn btn-ghost btn-sm">带上文档信息</button>
+        </div>
+        <div id="status" class="status"></div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <span>生成结果</span>
+          <span class="card-actions">
+            <button id="copy" class="btn btn-sm">复制</button>
+            <button id="exportQuick" class="btn btn-sm">导出到目录</button>
+            <button id="save" class="btn btn-sm btn-ghost">另存为…</button>
+          </span>
+        </div>
+        <textarea id="output" class="ta out ta-lg" rows="12"
+          placeholder="生成结果会显示在这里…"></textarea>
+
+        <label class="lbl">继续优化（基于上面的结果提新要求）</label>
+        <textarea id="refine" class="ta" rows="3"
+          placeholder="例：把魔法阵改成蓝色；强度再高一点；背景换成夜景"></textarea>
+        <div class="row">
+          <button id="btnRefine" class="btn btn-primary">继续优化 →</button>
+          <button id="btnRevert" class="btn btn-ghost btn-sm">撤销上一步</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <span>历史记录 <span id="histCount" class="count">0</span></span>
+          <span class="card-actions">
+            <button id="clearHistory" class="btn btn-sm btn-ghost">清空</button>
+          </span>
+        </div>
+        <div id="historyList" class="history">
+          <div class="empty">暂无记录</div>
+        </div>
+      </section>
+    </div>
 
   </div>
 

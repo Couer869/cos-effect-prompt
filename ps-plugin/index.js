@@ -1,5 +1,6 @@
 /* COS 后期提示词生成器 — Photoshop UXP 插件
- * 用户填入自己的 OpenAI 兼容 API，生成专业后期提示词。
+ * 多页面：① 首次配置页 → ② 生成主界面（支持多轮迭代优化）
+ * 配置只存本机；配置过一次后下次直接进主界面。
  *
  * ⚠️ 安全红线（修改本文件时务必遵守，分发前请复核）：
  *   1. 【绝不内置密钥】不得在代码里写死任何 API Key / Token。Key 必须来自用户输入。
@@ -126,22 +127,19 @@ function buildSystemPrompt(target) {
   else if (target === "comfyui") fmt = FORMAT_COMFYUI;
   else if (target === "novelai") fmt = FORMAT_NOVELAI;
 
-  return (
-    SKILL_CORE +
-    "\n" +
-    fmt +
-    `
+  return SKILL_CORE + "\n" + fmt + `
 【工作方式】
 - 用户只描述需求时：直接生成提示词，不要反问（除非完全无从下手）
 - 用户给出照片并问"这是什么风格/怎么做的/照着做"时：进入反推模式——先给 3-5 条简短分析，再给可复现的提示词
+- 【多轮修改】用户对上一版结果提出修改要求时，必须输出【完整更新后的结果】，不要只输出改动片段，
+  也不要输出 diff 或解释；保持与上一版相同的输出格式
 - 输出纯净可用，不要加多余的寒暄与解释
 - 只输出最终结果本身，不要包 markdown 代码块标记
-`
-  );
+`;
 }
 
 /* ============================================================
- * 二、设置存取
+ * 二、配置与本地存储
  * ============================================================ */
 
 const CFG_KEY = "cos_effect_prompt_cfg_v1";
@@ -155,29 +153,69 @@ function loadConfig() {
 
 function saveConfig(cfg) {
   try { localStorage.setItem(CFG_KEY, JSON.stringify(cfg)); }
-  catch (e) { setStatus("设置保存失败：" + e.message, "err"); }
+  catch (e) { setSetupStatus("设置保存失败：" + e.message, "err"); }
 }
 
-function readForm() {
+function isConfigured(cfg) {
+  return !!(cfg && cfg.baseUrl && cfg.apiKey && cfg.model);
+}
+
+/* 当前应使用的输出格式（主界面优先） */
+function currentTarget() {
+  const mainVisible = !document.getElementById("viewMain").classList.contains("hidden");
+  const el = mainVisible
+    ? document.getElementById("targetModelMain")
+    : document.getElementById("targetModel");
+  return el ? el.value : "nanobanana";
+}
+
+/* 读取配置：API 字段来自配置页，输出格式取当前界面 */
+function readConfig() {
   return {
     baseUrl: document.getElementById("baseUrl").value.trim(),
     apiKey: document.getElementById("apiKey").value.trim(),
     model: document.getElementById("model").value.trim(),
-    targetModel: document.getElementById("targetModel").value,
+    targetModel: currentTarget(),
     exportDir: document.getElementById("exportDir").value.trim()
   };
 }
 
-function writeForm(cfg) {
+function fillConfigForm(cfg) {
   document.getElementById("baseUrl").value = cfg.baseUrl || "";
   document.getElementById("apiKey").value = cfg.apiKey || "";
   document.getElementById("model").value = cfg.model || "";
-  document.getElementById("targetModel").value = cfg.targetModel || "nanobanana";
   document.getElementById("exportDir").value = cfg.exportDir || "";
+  document.getElementById("targetModel").value = cfg.targetModel || "nanobanana";
+  document.getElementById("targetModelMain").value = cfg.targetModel || "nanobanana";
+}
+
+function updateCfgSummary() {
+  const cfg = loadConfig();
+  const names = { nanobanana: "Nano Banana", midjourney: "Midjourney", comfyui: "ComfyUI", novelai: "NovelAI" };
+  const t = currentTarget();
+  document.getElementById("cfgSummary").textContent =
+    (cfg.model || "未配置模型") + " · " + (names[t] || t);
 }
 
 /* ============================================================
- * 三、历史记录
+ * 三、视图切换
+ * ============================================================ */
+
+function showView(name) {
+  const setup = document.getElementById("viewSetup");
+  const main = document.getElementById("viewMain");
+  if (name === "main") {
+    setup.classList.add("hidden");
+    main.classList.remove("hidden");
+    updateCfgSummary();
+  } else {
+    main.classList.add("hidden");
+    setup.classList.remove("hidden");
+  }
+}
+
+/* ============================================================
+ * 四、历史记录
  * ============================================================ */
 
 function labelOf(target) {
@@ -216,7 +254,6 @@ function renderHistory() {
   const box = document.getElementById("historyList");
   document.getElementById("histCount").textContent = String(list.length);
 
-  // 清空
   while (box.firstChild) box.removeChild(box.firstChild);
 
   if (!list.length) {
@@ -267,7 +304,10 @@ function renderHistory() {
     row.addEventListener("click", function () {
       document.getElementById("output").value = item.result || "";
       if (item.request) document.getElementById("request").value = item.request;
-      if (item.target) document.getElementById("targetModel").value = item.target;
+      if (item.target) {
+        document.getElementById("targetModelMain").value = item.target;
+        updateCfgSummary();
+      }
       setStatus("已载入历史记录", "ok");
     });
 
@@ -276,7 +316,7 @@ function renderHistory() {
 }
 
 /* ============================================================
- * 四、文件导出
+ * 五、文件导出
  * ============================================================ */
 
 function buildFilename(target, content) {
@@ -308,14 +348,12 @@ async function exportToDir() {
   const out = document.getElementById("output").value.trim();
   if (!out) { setStatus("没有可导出的内容", "err"); return; }
 
-  const cfg = readForm();
-  const filename = buildFilename(cfg.targetModel, out);
+  const cfg = loadConfig();
+  const filename = buildFilename(currentTarget(), out);
   const dir = (cfg.exportDir || "").trim();
 
-  // 未设目录 → 退回"另存为"对话框
   if (!dir) { return saveAs(filename, out); }
 
-  // 归一化目录路径为 file: URL
   const dirClean = dir.replace(/\\/g, "/").replace(/\/+$/, "");
   const folderUrl = dirClean.indexOf("file:") === 0
     ? dirClean
@@ -332,19 +370,19 @@ async function exportToDir() {
 }
 
 /* ============================================================
- * 五、调用 API
+ * 六、调用 API（支持多轮对话）
  * ============================================================ */
 
-async function callLLM(cfg, userText) {
+let messages = [];      // 对话历史（不含 system），用于多轮迭代
+let outputStack = [];   // 每轮结果，用于撤销
+
+async function callLLM(cfg, msgs) {
   const base = cfg.baseUrl.replace(/\/+$/, "");
   const url = /\/chat\/completions$/.test(base) ? base : base + "/chat/completions";
 
   const body = {
     model: cfg.model,
-    messages: [
-      { role: "system", content: buildSystemPrompt(cfg.targetModel) },
-      { role: "user", content: userText }
-    ],
+    messages: [{ role: "system", content: buildSystemPrompt(cfg.targetModel) }].concat(msgs),
     temperature: 0.7,
     stream: false
   };
@@ -377,7 +415,7 @@ async function callLLM(cfg, userText) {
 }
 
 /* ============================================================
- * 六、界面交互
+ * 七、界面交互
  * ============================================================ */
 
 function setStatus(msg, cls) {
@@ -386,36 +424,67 @@ function setStatus(msg, cls) {
   el.className = "status" + (cls ? " " + cls : "");
 }
 
+function setSetupStatus(msg, cls) {
+  const el = document.getElementById("setupStatus");
+  el.textContent = msg || "";
+  el.className = "status" + (cls ? " " + cls : "");
+}
+
+function resetConversation(clearText) {
+  messages = [];
+  outputStack = [];
+  if (clearText !== false) {
+    document.getElementById("request").value = "";
+    document.getElementById("output").value = "";
+    document.getElementById("refine").value = "";
+  }
+}
+
 function init() {
-  writeForm(loadConfig());
+  const cfg = loadConfig();
+  fillConfigForm(cfg);
   renderHistory();
 
-  // 设置区折叠
-  const toggle = document.getElementById("settingsToggle");
-  const body = document.getElementById("settingsBody");
-  toggle.addEventListener("click", function () {
-    if (body.classList.contains("hidden")) {
-      body.classList.remove("hidden");
-      document.getElementById("chev").textContent = "▾";
-    } else {
-      body.classList.add("hidden");
-      document.getElementById("chev").textContent = "▸";
+  // 已配置过 → 直接进主界面
+  if (isConfigured(cfg)) {
+    showView("main");
+  } else {
+    showView("setup");
+  }
+
+  /* ---------- 配置页 ---------- */
+  document.getElementById("btnEnter").addEventListener("click", function () {
+    const cfgNew = readConfig();
+    if (!cfgNew.baseUrl || !cfgNew.apiKey || !cfgNew.model) {
+      setSetupStatus("请填写完整：Base URL / API Key / 模型名", "err");
+      return;
     }
+    saveConfig(cfgNew);
+    setSetupStatus("");
+    showView("main");
+    setStatus("配置已保存，可以开始生成了", "ok");
   });
 
-  // 保存 / 清除设置
-  document.getElementById("saveCfg").addEventListener("click", function () {
-    saveConfig(readForm());
-    setStatus("设置已保存（仅存本机）", "ok");
+  /* ---------- 主界面顶部 ---------- */
+  document.getElementById("btnSettings").addEventListener("click", function () {
+    fillConfigForm(loadConfig());
+    showView("setup");
+    setSetupStatus("修改后点「保存并进入」", "ok");
   });
 
-  document.getElementById("clearCfg").addEventListener("click", function () {
-    localStorage.removeItem(CFG_KEY);
-    writeForm({});
-    setStatus("已清除设置", "ok");
+  document.getElementById("btnNewChat").addEventListener("click", function () {
+    resetConversation(true);
+    setStatus("已开始新对话", "ok");
   });
 
-  // 快捷填充
+  document.getElementById("targetModelMain").addEventListener("change", function () {
+    const cfgNow = loadConfig();
+    cfgNow.targetModel = currentTarget();
+    localStorage.setItem(CFG_KEY, JSON.stringify(cfgNow));
+    updateCfgSummary();
+  });
+
+  /* ---------- 快捷填充 ---------- */
   const chips = document.querySelectorAll(".chip");
   for (let i = 0; i < chips.length; i++) {
     chips[i].addEventListener("click", function () {
@@ -426,7 +495,7 @@ function init() {
     });
   }
 
-  // 带上当前文档信息
+  /* ---------- 带上文档信息 ---------- */
   document.getElementById("useDoc").addEventListener("click", function () {
     if (!photoshop) { setStatus("当前不在 Photoshop 中运行", "err"); return; }
     try {
@@ -444,25 +513,30 @@ function init() {
     }
   });
 
-  // 生成
+  /* ---------- 首次生成 ---------- */
   document.getElementById("gen").addEventListener("click", async function () {
-    const cfg = readForm();
-    if (!cfg.baseUrl || !cfg.apiKey || !cfg.model) {
-      setStatus("请先填写 Base URL / API Key / 模型名", "err");
-      return;
-    }
     const req = document.getElementById("request").value.trim();
     if (!req) { setStatus("请先描述你的需求", "err"); return; }
 
-    saveConfig(cfg);
+    const cfgNow = readConfig();
+    if (!isConfigured(cfgNow)) {
+      setStatus("配置不完整，请到「设置」检查 API 信息", "err");
+      return;
+    }
+
+    // 首次生成 = 开新对话
+    messages = [{ role: "user", content: req }];
+
     const btn = document.getElementById("gen");
     btn.disabled = true;
     setStatus("生成中…");
 
     try {
-      const out = await callLLM(cfg, req);
+      const out = await callLLM(cfgNow, messages);
+      messages.push({ role: "assistant", content: out });
+      outputStack = [out];
       document.getElementById("output").value = out;
-      addHistory({ time: nowStr(), target: cfg.targetModel, request: req, result: out });
+      addHistory({ time: nowStr(), target: currentTarget(), request: req, result: out });
       setStatus("生成完成", "ok");
     } catch (e) {
       setStatus("失败：" + e.message, "err");
@@ -471,7 +545,48 @@ function init() {
     }
   });
 
-  // 复制
+  /* ---------- 继续优化 ---------- */
+  document.getElementById("btnRefine").addEventListener("click", async function () {
+    const t = document.getElementById("refine").value.trim();
+    if (!t) { setStatus("请先写修改要求", "err"); return; }
+    if (!messages.length) { setStatus("请先点「生成提示词」得到初版结果", "err"); return; }
+
+    const cfgNow = readConfig();
+    messages.push({
+      role: "user",
+      content: "请基于上一版结果做如下修改，并输出【完整更新后的】结果（保持相同格式，不要只给片段）：\n" + t
+    });
+
+    const btn = document.getElementById("btnRefine");
+    btn.disabled = true;
+    setStatus("优化中…");
+
+    try {
+      const out = await callLLM(cfgNow, messages);
+      messages.push({ role: "assistant", content: out });
+      outputStack.push(out);
+      document.getElementById("output").value = out;
+      document.getElementById("refine").value = "";
+      addHistory({ time: nowStr(), target: currentTarget(), request: "【优化】" + t, result: out });
+      setStatus("已更新（第 " + outputStack.length + " 版）", "ok");
+    } catch (e) {
+      messages.pop(); // 失败则回退这条，保持历史干净
+      setStatus("优化失败：" + e.message, "err");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  /* ---------- 撤销上一步 ---------- */
+  document.getElementById("btnRevert").addEventListener("click", function () {
+    if (outputStack.length <= 1) { setStatus("没有可撤销的步骤", "err"); return; }
+    outputStack.pop();
+    messages = messages.slice(0, -2);
+    document.getElementById("output").value = outputStack[outputStack.length - 1];
+    setStatus("已撤销，回到第 " + outputStack.length + " 版", "ok");
+  });
+
+  /* ---------- 复制 / 导出 / 另存 ---------- */
   document.getElementById("copy").addEventListener("click", function () {
     const v = document.getElementById("output").value;
     if (!v) { setStatus("没有可复制的内容", "err"); return; }
@@ -479,22 +594,19 @@ function init() {
     setStatus("已复制到剪贴板", "ok");
   });
 
-  // 导出到目录
   document.getElementById("exportQuick").addEventListener("click", function () {
     exportToDir();
   });
 
-  // 另存为
   document.getElementById("save").addEventListener("click", function () {
     const v = document.getElementById("output").value.trim();
     if (!v) { setStatus("没有可保存的内容", "err"); return; }
-    const cfg = readForm();
-    saveAs(buildFilename(cfg.targetModel, v), v).catch(function (e) {
+    saveAs(buildFilename(currentTarget(), v), v).catch(function (e) {
       setStatus("保存失败：" + e.message, "err");
     });
   });
 
-  // 清空历史
+  /* ---------- 清空历史 ---------- */
   document.getElementById("clearHistory").addEventListener("click", function () {
     localStorage.removeItem(HISTORY_KEY);
     renderHistory();

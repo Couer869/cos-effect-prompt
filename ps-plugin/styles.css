@@ -208,3 +208,36 @@ body {
   margin-bottom: 3px;
 }
 .notice b { color: #f0dfa0; }
+
+/* ===== 多页面视图 ===== */
+.view { display: flex; flex-direction: column; gap: 10px; }
+.hidden { display: none !important; }
+
+/* ===== 顶部栏（主界面）===== */
+.hdr-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+.hdr-left { min-width: 0; flex: 1; }
+.hdr-actions { display: flex; gap: 5px; flex-shrink: 0; }
+
+/* ===== 大号输入框 ===== */
+.ta-lg {
+  min-height: 110px;
+  line-height: 1.6;
+  font-size: 12px;
+}
+.ta.out.ta-lg { min-height: 190px; }
+
+/* ===== 整行按钮 ===== */
+.btn-block {
+  width: 100%;
+  padding: 9px 12px;
+  font-size: 13px;
+  flex: none;
+}
+
+/* 输入区留白更舒适 */
+textarea.ta { padding: 8px; }
