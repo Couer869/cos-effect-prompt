@@ -77,14 +77,12 @@
          视图 2：生成主界面
          ============================================================ -->
     <div id="viewMain" class="view hidden">
-      <header class="hdr hdr-row">
-        <div class="hdr-left">
-          <div class="hdr-title">COS 提示词</div>
-          <div class="hdr-sub" id="cfgSummary">—</div>
-        </div>
+      <header class="hdr">
+        <div class="hdr-title">COS 提示词</div>
+        <div class="hdr-sub" id="cfgSummary">—</div>
         <div class="hdr-actions">
-          <button id="btnKB" class="btn btn-sm btn-ghost">知识库</button>
-          <button id="btnNewChat" class="btn btn-sm btn-ghost">新对话</button>
+          <button id="btnKB" class="btn btn-sm">知识库</button>
+          <button id="btnNewChat" class="btn btn-sm">新对话</button>
           <button id="btnSettings" class="btn btn-sm btn-ghost">设置</button>
         </div>
       </header>
@@ -118,17 +116,22 @@
         <div id="status" class="status"></div>
       </section>
 
-      <!-- 结果：用可滚动 div 展示（textarea 在 UXP 里滚动不可靠） -->
+      <!-- 结果区：可编辑 textarea（能手动改，也能滚动/自动增高看全） -->
       <section class="card">
         <div class="card-head">
-          <span>生成结果</span>
+          <span>生成结果 <span class="hdr-tip">（可直接编辑）</span></span>
           <span class="card-actions">
             <button id="copy" class="btn btn-sm">复制</button>
             <button id="exportQuick" class="btn btn-sm">导出到目录</button>
             <button id="save" class="btn btn-sm btn-ghost">另存为…</button>
           </span>
         </div>
-        <div id="output" class="output-box empty">生成结果会显示在这里…</div>
+        <textarea id="output" class="ta out output-edit" rows="12"
+          placeholder="生成结果会显示在这里，可直接编辑…"></textarea>
+        <div class="row">
+          <button id="btnExpand" class="btn btn-sm btn-ghost">展开全部</button>
+          <span class="hint" id="outHint">内容过长时框内可上下滚动，或点「展开全部」</span>
+        </div>
 
         <label class="lbl">继续优化（基于上面的结果提新要求）</label>
         <textarea id="refine" class="ta ta-refine" rows="5"
@@ -156,13 +159,11 @@
          视图 3：知识库
          ============================================================ -->
     <div id="viewKB" class="view hidden">
-      <header class="hdr hdr-row">
-        <div class="hdr-left">
-          <div class="hdr-title">知识库</div>
-          <div class="hdr-sub">写在这里的内容会作为固定要求，每次生成自动带上</div>
-        </div>
+      <header class="hdr">
+        <div class="hdr-title">知识库</div>
+        <div class="hdr-sub">写在这里的内容会作为固定要求，每次生成自动带上</div>
         <div class="hdr-actions">
-          <button id="kbBack" class="btn btn-sm btn-ghost">返回</button>
+          <button id="kbBack" class="btn btn-sm">返回</button>
         </div>
       </header>
 

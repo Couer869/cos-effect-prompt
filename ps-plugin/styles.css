@@ -49,10 +49,26 @@ body {
 .card { flex-shrink: 0; }
 .hdr { flex-shrink: 0; }
 
-/* 头部 */
-.hdr { padding: 2px 0 6px; }
+/* 头部：一律竖排（标题 → 副标题 → 按钮行）
+ * 面板宽度只有 300px 出头，横向 flex 排布会让标题和按钮挤到重叠，
+ * 所以不做左右分栏，全部纵向堆叠，按钮行自己换行。
+ */
+.hdr {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 0 6px;
+}
 .hdr-title { font-size: 14px; font-weight: 700; color: #f0f0f0; }
-.hdr-sub { font-size: 11px; color: #8d8d8d; margin-top: 2px; }
+.hdr-sub { font-size: 11px; color: #8d8d8d; line-height: 1.45; }
+.hdr-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 2px;
+}
+.hdr-actions .btn { flex: none; }
+.hdr-tip { font-size: 10px; color: #7a7a7a; font-weight: 400; }
 
 /* 卡片 */
 .card {
@@ -64,8 +80,10 @@ body {
 
 .card-head {
   display: flex;
+  flex-wrap: wrap;            /* 窄面板下换行，不要挤在一起 */
   justify-content: space-between;
   align-items: center;
+  gap: 6px;
   font-weight: 700;
   color: #e8e8e8;
   padding: 2px 0 6px;
@@ -73,7 +91,7 @@ body {
 
 .card-head.clickable { cursor: pointer; }
 .chev { color: #8d8d8d; font-size: 11px; }
-.card-actions { display: flex; gap: 6px; }
+.card-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 
 .card-body.hidden { display: none; }
 
@@ -227,15 +245,7 @@ body {
 .view { display: flex; flex-direction: column; gap: 10px; }
 .hidden { display: none !important; }
 
-/* ===== 顶部栏（主界面）===== */
-.hdr-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 8px;
-}
-.hdr-left { min-width: 0; flex: 1; }
-.hdr-actions { display: flex; gap: 5px; flex-shrink: 0; }
+/* 顶部栏的左右分栏样式已废弃：窄面板下会重叠，改为 .hdr 竖排（见上方） */
 
 /* ===== 大号输入框 ===== */
 .ta-lg {
@@ -250,13 +260,15 @@ body {
   line-height: 1.6;
 }
 
-/* ===== 生成结果展示区 =====
- * 用 div + overflow 而非 textarea——UXP 里 textarea 滚动不可靠，
- * 结果又是长 JSON，必须能上下滑动看到全部内容。
+/* ===== 生成结果展示区（可编辑 textarea）=====
+ * 要同时满足两件事：
+ *   1) 能手动编辑 —— 必须是 textarea
+ *   2) 能看全 / 能滚动 —— 靠 JS 按内容自动增高（rows），外层 .app 滚动；
+ *      超出上限后 textarea 自身再滚（overflow-y）。
  */
-.output-box {
-  min-height: 180px;
-  max-height: 440px;
+.output-edit {
+  min-height: 200px;
+  max-height: 560px;
   overflow-y: auto;
   overflow-x: hidden;
   background: #1c1c1c;
@@ -267,16 +279,16 @@ body {
   font-size: 11px;
   line-height: 1.55;
   color: #e4e4e4;
-  white-space: pre-wrap;
-  word-break: break-all;
+  white-space: pre-wrap;      /* 长 JSON 行在窄面板里换行，不产生横向滚动 */
+  word-break: break-word;
   user-select: text;
-  cursor: text;
+  -webkit-user-select: text;
+  resize: vertical;
 }
-.output-box.empty {
-  color: #6f6f6f;
-  font-family: inherit;
-  font-size: 12px;
-}
+.output-edit:focus { border-color: #4a90d9; }
+
+/* 展开状态：把高度上限放开，一次看全 */
+.output-edit.expanded { max-height: none; }
 
 /* ===== 整行按钮 ===== */
 .btn-block {

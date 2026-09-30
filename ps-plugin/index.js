@@ -27,44 +27,63 @@ try {
 try { clipboard = require("clipboard"); } catch (e) { /* 剪贴板不可用：走兜底 */ }
 try { photoshop = require("photoshop"); } catch (e) { /* 非 PS 环境 */ }
 
-/* 多层剪贴板兜底 —— UXP 剪贴板模块 / navigator / execCommand / 自动选中 */
-function copyToClipboard(text) {
+/* 选中结果框里的全部文本（最后一道兜底：用户按一次 Ctrl+C 即可） */
+function selectAllOutput() {
   try {
-    if (clipboard && clipboard.copy) { clipboard.copy(text); return true; }
-  } catch (e) { /* 继续 */ }
+    const el = document.getElementById("output");
+    if (!el) return false;
+    el.focus();
+    if (typeof el.select === "function") { el.select(); return true; }
+    if (typeof el.setSelectionRange === "function") {
+      el.setSelectionRange(0, el.value.length);
+      return true;
+    }
+  } catch (e) { /* 忽略 */ }
+  return false;
+}
 
+/* 多层剪贴板兜底，返回给用户看的文案。
+ *
+ * 关键：每一层都必须"确认成功"才能返回。上一版在这里踩过坑——
+ * navigator.clipboard.writeText() 返回的是 Promise，没 await 就 return true，
+ * 于是 UXP 里明明没有剪贴板写权限却提示"已复制"，实际什么都没进去。
+ */
+async function copyToClipboard(text) {
+  // 1) UXP 剪贴板模块（面板里最可靠的一条路）
+  if (clipboard && typeof clipboard.copy === "function") {
+    try {
+      clipboard.copy(text);
+      return "已复制到剪贴板";
+    } catch (e) { /* 继续 */ }
+  }
+
+  // 2) 浏览器剪贴板：必须 await，没有权限时会 reject
   try {
     if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text);
-      return true;
+      await navigator.clipboard.writeText(text);
+      return "已复制到剪贴板";
     }
   } catch (e) { /* 继续 */ }
 
+  // 3) execCommand 兜底
   try {
     const ta = document.createElement("textarea");
     ta.value = text;
     ta.style.position = "fixed";
     ta.style.left = "-9999px";
+    ta.style.top = "0";
     document.body.appendChild(ta);
+    ta.focus();
     ta.select();
     const ok = !!(document.execCommand && document.execCommand("copy"));
     document.body.removeChild(ta);
-    if (ok) return true;
+    if (ok) return "已复制到剪贴板";
   } catch (e) { /* 继续 */ }
 
-  // 最后兜底：自动全选结果区，提示用户按 Ctrl+C
-  try {
-    const box = document.getElementById("output");
-    if (box && window.getSelection && document.createRange) {
-      const r = document.createRange();
-      r.selectNodeContents(box);
-      const s = window.getSelection();
-      s.removeAllRanges();
-      s.addRange(r);
-    }
-  } catch (e) { /* 忽略 */ }
+  // 4) 全选结果框，让用户按一次 Ctrl+C
+  if (selectAllOutput()) return "内容已全选，请按一次 Ctrl+C";
 
-  return false;
+  return "";
 }
 
 /* ============================================================
@@ -315,21 +334,59 @@ function updateCfgSummary() {
 }
 
 /* ============================================================
- * 三、输出区（div 展示，支持滚动）
+ * 三、输出区（可编辑 textarea + 自动增高）
+ *
+ * 兼顾两件事：
+ *   - 可编辑 —— 用户能直接在结果上手动改字，改完再复制/导出
+ *   - 看得全 —— UXP 里 textarea 内部滚动不好使，所以按内容行数
+ *     自动调 rows 把框撑高，让外层 .app 去滚；超出上限（MAX_ROWS）
+ *     后由 textarea 自己滚 + 「展开全部」按钮放开高度
  * ============================================================ */
 
-let currentOutput = "";
+const MIN_ROWS = 12;   // 初始高度
+const MAX_ROWS = 34;   // 自动增高上限，超过就靠内部滚动
+const WRAP_COLS = 52;  // 窄面板下一行大约能放多少字符（用于估算折行）
 
 function setOutput(text) {
-  currentOutput = text || "";
   const el = document.getElementById("output");
   if (!el) return;
-  el.textContent = currentOutput;
-  if (currentOutput) el.classList.remove("empty");
-  else el.classList.add("empty");
+  el.value = text || "";
+  el.classList.remove("expanded");
+  autoGrowOutput();
 }
 
-function getOutput() { return currentOutput; }
+/* 直接读 DOM：用户手动改过的内容也能被复制/导出/另存读到 */
+function getOutput() {
+  const el = document.getElementById("output");
+  return el ? el.value : "";
+}
+
+/* 按内容估算需要的行数（含折行），撑高输入框 */
+function autoGrowOutput() {
+  const el = document.getElementById("output");
+  if (!el) return;
+  const v = el.value || "";
+
+  let lines = 1;
+  if (v) {
+    const parts = v.split(/\r?\n/);
+    lines = 0;
+    for (let i = 0; i < parts.length; i++) {
+      lines += Math.max(1, Math.ceil(parts[i].length / WRAP_COLS));
+    }
+  }
+
+  const rows = Math.max(MIN_ROWS, Math.min(lines + 1, MAX_ROWS));
+  el.rows = rows;
+
+  const hint = document.getElementById("outHint");
+  if (hint) {
+    const over = lines + 1 > MAX_ROWS;
+    hint.textContent = over
+      ? "内容较长，框内可上下滚动；点「展开全部」可一次看全"
+      : "结果可直接编辑，改完再复制或导出";
+  }
+}
 
 /* ============================================================
  * 四、视图切换
@@ -343,7 +400,7 @@ function showView(name) {
     if (id === name) el.classList.remove("hidden");
     else el.classList.add("hidden");
   });
-  if (name === "viewMain") updateCfgSummary();
+  if (name === "viewMain") { updateCfgSummary(); autoGrowOutput(); }
   if (name === "viewKB") {
     document.getElementById("kbText").value = loadKB();
     setKbStatus(loadKB().trim() ? "知识库已保存内容" : "知识库为空", "ok");
@@ -868,13 +925,46 @@ function init() {
     setStatus("已撤销，回到第 " + outputStack.length + " 版", "ok");
   });
 
-  /* ---------- 复制（多层兜底）---------- */
-  document.getElementById("copy").addEventListener("click", function () {
+  /* ---------- 复制（多层兜底，带结果反馈）---------- */
+  document.getElementById("copy").addEventListener("click", async function () {
     const v = getOutput();
-    if (!v) { setStatus("没有可复制的内容", "err"); return; }
-    const ok = copyToClipboard(v);
-    if (ok) setStatus("已复制到剪贴板", "ok");
-    else setStatus("已选中内容，请按 Ctrl+C 复制", "err");
+    if (!v.trim()) { setStatus("没有可复制的内容", "err"); return; }
+
+    const btn = this;
+    const old = btn.textContent;
+    const msg = await copyToClipboard(v);
+
+    if (msg === "已复制到剪贴板") {
+      setStatus("已复制到剪贴板（" + v.length + " 字符）", "ok");
+      btn.textContent = "已复制 ✓";
+      setTimeout(function () { btn.textContent = old; }, 1500);
+    } else if (msg) {
+      // 走到全选兜底：内容已选中，用户按一次 Ctrl+C 就行
+      setStatus(msg, "err");
+      btn.textContent = "按 Ctrl+C";
+      setTimeout(function () { btn.textContent = old; }, 2500);
+    } else {
+      setStatus("复制失败：请手动在结果框里选中内容后按 Ctrl+C", "err");
+    }
+  });
+
+  /* ---------- 展开全部 / 收起 ---------- */
+  document.getElementById("btnExpand").addEventListener("click", function () {
+    const el = document.getElementById("output");
+    if (el.classList.contains("expanded")) {
+      el.classList.remove("expanded");
+      autoGrowOutput();
+      this.textContent = "展开全部";
+    } else {
+      el.classList.add("expanded");
+      el.rows = Math.max(el.rows, 34);
+      this.textContent = "收起";
+    }
+  });
+
+  /* 用户手动改内容后同步高度与提示 */
+  document.getElementById("output").addEventListener("input", function () {
+    autoGrowOutput();
   });
 
   /* ---------- 导出 / 另存 ---------- */
