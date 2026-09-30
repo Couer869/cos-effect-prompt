@@ -7,14 +7,43 @@
 - Photoshop **24.0** 或更高（支持 UXP 的版本）
 - **UXP Developer Tool**（用于加载开发版插件）：在 Creative Cloud 桌面端「市场」里搜索安装，或从 Adobe 官网下载
 
-## 安装（开发版，自用）
+## 安装
+
+### 方式 A：直接拷到 Photoshop 的 Plug-ins 目录（推荐，无需任何工具）
+
+UXP 插件可直接放进 Photoshop 安装目录的 `Plug-ins\` 下，PS 启动时会自动加载。
+
+1. 找到你的 Photoshop 安装目录下的 `Plug-ins\`，例如：
+   ```
+   D:\1\Adobe Photoshop 2026\Plug-ins\
+   ```
+2. 在里面新建文件夹 `cos-effect-prompt`
+3. 把这 4 个文件复制进去：
+   ```
+   manifest.json
+   index.html
+   index.js
+   styles.css
+   ```
+4. **重启 Photoshop** → 菜单 **增效工具（Plugins）→ COS 提示词**
+
+> 目录结构应为：
+> ```
+> Plug-ins/cos-effect-prompt/
+> ├── manifest.json
+> ├── index.html
+> ├── index.js
+> └── styles.css
+> ```
+
+### 方式 B：用 UXP Developer Tool 加载（有正版 PS + Adobe 账号时）
 
 1. 打开 **UXP Developer Tool**
 2. 菜单 **Add Plugin…** → 选择本目录（含 `manifest.json` 的 `ps-plugin` 文件夹）
 3. 点击 **Load**（或 **Watch** 以便改动自动重载）
-4. 打开 Photoshop → 菜单 **插件 / Plugins → COS 提示词**，面板即出现
+4. 打开 Photoshop → 菜单 **增效工具（Plugins）→ COS 提示词**
 
-> 面板默认停靠在右侧；可拖动到任意位置，或从「窗口 → 扩展」里再次调出。
+> 面板默认停靠在右侧；可拖动到任意位置。
 
 ## 配置 API
 
@@ -80,10 +109,7 @@
 
 ### 换用其他服务商
 
-本插件在 `manifest.json` 里声明了可访问的域名白名单（UXP 的安全机制）。若你的服务商不在列表中：
-1. 打开 `manifest.json`
-2. 在 `requiredPermissions.network.domains` 数组里加上你的域名，如 `"https://api.your-provider.com"`
-3. 在 UXP Developer Tool 里 **Reload** 插件
+本插件 `manifest.json` 中声明的是 `"network": { "domains": "all" }`——**不限制域名**，因此任意 OpenAI 兼容服务商都可直接填写，无需改配置。
 
 ### 调整内置知识
 

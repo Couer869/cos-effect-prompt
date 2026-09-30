@@ -4,9 +4,10 @@
   "name": "COS 后期提示词生成器",
   "version": "1.0.0",
   "main": "index.html",
-  "host": [
-    { "app": "PS", "minVersion": "24.0" }
-  ],
+  "host": {
+    "app": "PS",
+    "minVersion": "24.0.0"
+  },
   "entrypoints": [
     {
       "type": "panel",
@@ -19,24 +20,8 @@
     }
   ],
   "requiredPermissions": {
-    "network": {
-      "domains": [
-        "https://api.openai.com",
-        "https://api.deepseek.com",
-        "https://dashscope.aliyuncs.com",
-        "https://api.moonshot.cn",
-        "https://open.bigmodel.cn",
-        "https://api.siliconflow.cn",
-        "https://openrouter.ai",
-        "https://api.groq.com",
-        "https://api.together.xyz",
-        "https://api.minimax.chat",
-        "https://generativelanguage.googleapis.com"
-      ]
-    },
-    "localFileSystem": "fullAccess"
-  },
-  "featureFlags": {
-    "enableAlerts": true
+    "localFileSystem": "fullAccess",
+    "network": { "domains": "all" },
+    "allowCodeGenerationFromStrings": true
   }
 }
