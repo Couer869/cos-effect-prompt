@@ -209,11 +209,26 @@ git clone https://github.com/Couer869/cos-effect-prompt.git
 
 ---
 
+## Photoshop 插件
+
+`ps-plugin/` 是配套的 **Photoshop UXP 插件**：在 PS 面板里填**你自己的 OpenAI 兼容 API**（DeepSeek / 通义 / Kimi / 智谱 / OpenAI…），直接生成提示词。
+
+- 支持四种输出格式（Nano Banana 信封 / MJ / ComfyUI / NovelAI）
+- 历史记录（最近 30 条，点击载回）
+- 一键导出到你指定的目录
+- 内置本 Skill 的完整知识作为 system prompt
+
+> 🔒 **安全**：插件**不内置任何密钥**，Key 由使用者填写、只存本机、只发往其自己配置的接口地址。分发时请勿自带 Key。
+> 详见 [`ps-plugin/README.md`](ps-plugin/README.md)。
+
+---
+
 ## 目录结构
 
 ```
 cos-effect-prompt/
 ├── SKILL.md                      # 触发 + 组装流程 + 泛化/反推/风格/参考库/画笔引导
+├── ps-plugin/                    # Photoshop UXP 插件（填自己的 API 生成提示词）
 └── references/
     ├── effects.md                # 44 种特效词库 + 9 个组合模板（默认 CG 质感）
     ├── portrait.md               # 修脸 / 头发 / 服装 + 修容风格变体

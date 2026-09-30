@@ -1,6 +1,12 @@
 /* COS 后期提示词生成器 — Photoshop UXP 插件
  * 用户填入自己的 OpenAI 兼容 API，生成专业后期提示词。
- * Key 仅存本机 localStorage，不上传任何第三方。
+ *
+ * ⚠️ 安全红线（修改本文件时务必遵守，分发前请复核）：
+ *   1. 【绝不内置密钥】不得在代码里写死任何 API Key / Token。Key 必须来自用户输入。
+ *   2. 【只存本机】Key 仅保存在 localStorage（CFG_KEY），不得写入文件、日志或历史记录。
+ *   3. 【只发用户指定的地址】Key 仅在 Authorization 头中发往用户自己配置的 baseUrl，
+ *      禁止发往任何其他域名、禁止加入任何埋点/上报请求。
+ *   4. 【分发前自检】搜索 sk- / api_key / token / Authorization，确认无硬编码凭据。
  */
 
 const uxp = require("uxp");

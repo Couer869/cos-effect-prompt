@@ -166,3 +166,23 @@ body {
   flex-shrink: 0;
 }
 .hist-del:hover { color: #e57373; }
+
+/* 安全说明 */
+.notice {
+  margin-top: 8px;
+  padding: 6px 8px;
+  background: #2f2a1f;
+  border: 1px solid #5a4a24;
+  border-left: 3px solid #c9a227;
+  border-radius: 3px;
+  font-size: 10px;
+  color: #c9bd9a;
+  line-height: 1.55;
+}
+.notice-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #e0c460;
+  margin-bottom: 3px;
+}
+.notice b { color: #f0dfa0; }
