@@ -30,6 +30,8 @@ Nano Banana 是吃**自然语言**的图像模型，但"加个特效"这种模�
 - **参考提示词库**—— 把喜欢的参考提示词存进库，泛化分析提炼可复用要素，生成时自动参考优化
 - **画笔引导**—— 照片上画红色箭头/轨迹指定风、发丝、裙摆飘动的方向，提示词自动引用
 - **电影风格仿制**—— 王家卫 / 银翼杀手 / 复古胶片 / 新海诚等电影风格，注入调色与光影
+- **Midjourney 提示词指南**—— 内置 7-Element 框架、参数全表（含 `--sref`/`--cref`/`--niji`）、模板与垃圾词黑名单，直接产出可粘贴 `/imagine` 的提示词
+- **大师电影感构图库**—— 15 种大师级构图（单点透视 / 三分法 / 黄金分割 / 剪影逆光 / 广角史诗 / 水面镜像…），按场景自动选配
 - **ComfyUI 进阶**—— ControlNet（姿势/深度/线稿控制）与 LoRA / Embedding 写法
 
 把照片和指令一起交给 Nano Banana，得到的是**稳定、可控、可复现**的高质量后期。
@@ -47,6 +49,8 @@ Nano Banana 是吃**自然语言**的图像模型，但"加个特效"这种模�
 | `body_sculpting` | 塑形：液化瘦腰 + **沙漏比例** / 胸部 / 腰部 / 腹肌 / 肩颈 / **瑕疵移除**（体毛/痘印/疤痕）+ 背景修复 | "瘦腰" "腹肌" "祛痘印" |
 | `wind_effect` | 风效：裙摆 / 披风 / 飘带统一风向飘动 | "裙摆飘起来" |
 | `lighting_reshape` | 光影重塑：三点布光 / 逆光 / 侧光 / 色温 / 光比 | "重塑光影" "打光" "改逆光" |
+| `3d_asset_integration` | 3D素材整合：置入模型真实化融合（面数提升 / 法线转凹凸 / SSS / 接触交互等 8 子模块） | "3D素材太假" "模型融合" |
+| 电影风格 | 王家卫 / 银翼杀手 / 波顿 / 复古胶片 / 新海诚等 10 种风格仿制 | "王家卫电影感" "复古胶片" |
 
 > **泛化兜底**：以上都没有的需求，Skill 会按四要素（动作 / 对象 / 目标描述 / 保持项）自动组装同等质量的新模块。
 
@@ -209,13 +213,24 @@ git clone https://github.com/Couer869/cos-effect-prompt.git
 
 ```
 cos-effect-prompt/
-├── SKILL.md                    # 触发条件 + 5 步组装流程 + 泛化模块逻辑
+├── SKILL.md                      # 触发 + 组装流程 + 泛化/反推/风格/参考库/画笔引导
 └── references/
-    ├── effects.md              # 28 种特效词库（视觉描述 / 融入写法 / 强度词 / CG 质感）
-    ├── portrait.md             # 修脸 / 亮晶晶头发 / 服装瑕疵词库
-    ├── fallback.md             # 库外需求泛化组装（调色 / 换背景 / 重塑光 / 去路人）
-    ├── template.json           # 完整 JSON 骨架
-    └── nano-banana.md          # Nano Banana 编辑原理 + 摄影/电影术语
+    ├── effects.md                # 44 种特效词库 + 9 个组合模板（默认 CG 质感）
+    ├── portrait.md               # 修脸 / 头发 / 服装 + 修容风格变体
+    ├── body-retouch.md           # 身体专项（沙漏比例/胸部/腰部/腹肌/肩颈/瑕疵移除/勒肉）
+    ├── clothing-materials.md     # 服装材质 + C 服还原度
+    ├── lighting.md               # 光影重塑（三点布光 / 色温 / 光比）
+    ├── 3d-assets.md              # 3D 素材整合（8 子模块）
+    ├── midjourney.md             # MJ 提示词指南（框架 / 参数 / 模板 / 大师构图库）
+    ├── mj-style.md               # MJ 风格措辞 + 识别维度
+    ├── cinema-styles.md          # 电影风格仿制（10 种）
+    ├── models.md                 # 多模型适配（ComfyUI/SD/MJ/NovelAI + ControlNet/LoRA）
+    ├── fallback.md               # 泛化模块 + 反推示例
+    ├── styles-learned.md         # 已学风格库
+    ├── user-prompts.md           # 用户参考提示词库
+    ├── preset-envelope.json      # 插件预设信封示例
+    ├── template.json             # 指令骨架 + 参数控件
+    └── nano-banana.md            # Nano Banana 编辑原理 + 透视/摄影术语
 ```
 
 ---
