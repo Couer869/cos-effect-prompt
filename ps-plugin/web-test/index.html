@@ -7,8 +7,9 @@
   <style>
     /* 浏览器测试版：恢复正常网页滚动（面板版用固定高度滚动容器） */
     html, body { height: auto; overflow: visible; }
-    body { max-width: 620px; margin: 0 auto; padding: 16px; }
-    .app { height: auto; overflow: visible; }
+    body { display: block; max-width: 640px; margin: 0 auto; padding: 16px; }
+    .app { display: block; height: auto; overflow: visible; padding: 0; }
+    .view { margin-bottom: 16px; }
     .banner {
       background: #2f2a1f; border: 1px solid #5a4a24; border-left: 3px solid #c9a227;
       color: #c9bd9a; font-size: 11px; padding: 8px 10px; border-radius: 3px;
@@ -16,6 +17,8 @@
     }
     .banner b { color: #e0c460; }
     .hist-item { cursor: pointer; }
+    .opt { user-select: none; }
+    .chip { user-select: none; }
   </style>
 </head>
 <body>
@@ -75,6 +78,8 @@
     「导出到目录」在浏览器不可用，请用「另存为…」（触发浏览器下载）。
   </div>
 
+  <div id="errBar" class="errbar hidden"></div>
+
   <div class="app">
 
     <!-- ===== 视图 1：首次配置 ===== -->
@@ -85,19 +90,18 @@
       </header>
 
       <section class="card">
-        <label class="lbl">服务商预设（选一个自动填入地址和模型名）</label>
-        <select id="providerPreset" class="inp">
-          <option value="">— 选择服务商 —</option>
-          <option value="deepseek">DeepSeek（深度求索）</option>
-          <option value="qwen">通义千问（阿里）</option>
-          <option value="kimi">Kimi / Moonshot（月之暗面）</option>
-          <option value="zhipu">智谱 GLM</option>
-          <option value="siliconflow">硅基流动 SiliconFlow</option>
-          <option value="minimax">MiniMax</option>
-          <option value="openai">OpenAI</option>
-          <option value="openrouter">OpenRouter</option>
-          <option value="custom">自定义</option>
-        </select>
+        <label class="lbl">服务商预设（点一个自动填入）</label>
+        <div id="providerPreset" class="opt-list">
+          <div class="opt" data-value="deepseek">DeepSeek</div>
+          <div class="opt" data-value="qwen">通义千问</div>
+          <div class="opt" data-value="kimi">Kimi</div>
+          <div class="opt" data-value="zhipu">智谱 GLM</div>
+          <div class="opt" data-value="siliconflow">硅基流动</div>
+          <div class="opt" data-value="minimax">MiniMax</div>
+          <div class="opt" data-value="openai">OpenAI</div>
+          <div class="opt" data-value="openrouter">OpenRouter</div>
+          <div class="opt" data-value="custom">自定义</div>
+        </div>
 
         <label class="lbl">接口地址（Base URL）</label>
         <input id="baseUrl" class="inp" placeholder="https://api.deepseek.com/v1" />
@@ -110,18 +114,16 @@
           <input id="model" class="inp" placeholder="填好 API Key 后自动拉取" />
           <button id="btnFetchModels" class="btn btn-sm">拉取模型</button>
         </div>
-        <select id="modelList" class="inp hidden">
-          <option value="">— 从列表中选择模型 —</option>
-        </select>
+        <div id="modelList" class="opt-list opt-scroll hidden"></div>
         <div id="modelHint" class="hint"></div>
 
         <label class="lbl">默认输出格式</label>
-        <select id="targetModel" class="inp">
-          <option value="nanobanana">Nano Banana（插件预设信封）</option>
-          <option value="midjourney">Midjourney（自然语言 + 参数）</option>
-          <option value="comfyui">ComfyUI / SD（tag + 权重 + 参数）</option>
-          <option value="novelai">NovelAI（Danbooru 标签）</option>
-        </select>
+        <div id="targetModel" class="opt-list">
+          <div class="opt active" data-value="nanobanana">Nano Banana</div>
+          <div class="opt" data-value="midjourney">Midjourney</div>
+          <div class="opt" data-value="comfyui">ComfyUI / SD</div>
+          <div class="opt" data-value="novelai">NovelAI</div>
+        </div>
 
         <label class="lbl">导出目录（浏览器版不可用）</label>
         <div class="field-row">
@@ -156,12 +158,12 @@
 
       <section class="card">
         <label class="lbl">输出格式</label>
-        <select id="targetModelMain" class="inp">
-          <option value="nanobanana">Nano Banana（插件预设信封）</option>
-          <option value="midjourney">Midjourney（自然语言 + 参数）</option>
-          <option value="comfyui">ComfyUI / SD（tag + 权重 + 参数）</option>
-          <option value="novelai">NovelAI（Danbooru 标签）</option>
-        </select>
+        <div id="targetModelMain" class="opt-list">
+          <div class="opt active" data-value="nanobanana">Nano Banana</div>
+          <div class="opt" data-value="midjourney">Midjourney</div>
+          <div class="opt" data-value="comfyui">ComfyUI / SD</div>
+          <div class="opt" data-value="novelai">NovelAI</div>
+        </div>
 
         <label class="lbl">需求描述</label>
         <textarea id="request" class="ta ta-lg" rows="8"

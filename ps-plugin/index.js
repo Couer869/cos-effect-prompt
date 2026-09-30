@@ -10,13 +10,38 @@
  *   4. 【分发前自检】搜索 sk- / api_key / token / Authorization，确认无硬编码凭据。
  */
 
-const uxp = require("uxp");
-const fs = uxp.storage.localFileSystem;
-const formats = uxp.storage.formats;
-const clipboard = require("clipboard");
-
+/* 模块加载：全部容错。
+ * 关键：任何一个 require 失败都不能让整个脚本中断——否则所有按钮都会没反应。 */
+let fs = null;
+let formats = null;
+let clipboard = null;
 let photoshop = null;
-try { photoshop = require("photoshop"); } catch (e) { /* 非 PS 环境忽略 */ }
+
+try {
+  const uxp = require("uxp");
+  if (uxp && uxp.storage) {
+    fs = uxp.storage.localFileSystem;
+    formats = uxp.storage.formats;
+  }
+} catch (e) { /* 存储模块不可用：导出/另存功能降级 */ }
+
+try { clipboard = require("clipboard"); } catch (e) { /* 剪贴板模块不可用：走 navigator 兜底 */ }
+
+try { photoshop = require("photoshop"); } catch (e) { /* 非 PS 环境 */ }
+
+/* 统一剪贴板（CEP/浏览器兜底） */
+function copyToClipboard(text) {
+  try {
+    if (clipboard && clipboard.copy) { clipboard.copy(text); return true; }
+  } catch (e) { /* 继续兜底 */ }
+  try {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch (e) { /* 兜底失败 */ }
+  return false;
+}
 
 /* ============================================================
  * 一、内置技能知识（system prompt）
@@ -173,13 +198,50 @@ function isConfigured(cfg) {
   return !!(cfg && cfg.baseUrl && cfg.apiKey && cfg.model);
 }
 
+/* ---------- 通用：选项组控件 ----------
+ * UXP 对原生 <select> 支持不可靠（change 事件不触发），因此用
+ * 「容器 + .opt 子项 + active 类」实现下拉，点击即选中。
+ */
+function getOptValue(id) {
+  const el = document.getElementById(id);
+  if (!el) return "";
+  if (el.tagName === "SELECT") return el.value;
+  const a = el.querySelector(".opt.active");
+  return a ? (a.getAttribute("data-value") || "") : "";
+}
+
+function setOptValue(id, v) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  if (el.tagName === "SELECT") { el.value = v || ""; return; }
+  const opts = el.querySelectorAll(".opt");
+  for (let i = 0; i < opts.length; i++) {
+    if (opts[i].getAttribute("data-value") === v) opts[i].classList.add("active");
+    else opts[i].classList.remove("active");
+  }
+}
+
+function buildOptList(containerId, items, onPick) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  while (el.firstChild) el.removeChild(el.firstChild);
+  items.forEach(function (it) {
+    const d = document.createElement("div");
+    d.className = "opt";
+    d.setAttribute("data-value", it.value);
+    d.textContent = it.label;
+    d.addEventListener("click", function () {
+      setOptValue(containerId, it.value);
+      if (onPick) onPick(it.value, it.label);
+    });
+    el.appendChild(d);
+  });
+}
+
 /* 当前应使用的输出格式（主界面优先） */
 function currentTarget() {
   const mainVisible = !document.getElementById("viewMain").classList.contains("hidden");
-  const el = mainVisible
-    ? document.getElementById("targetModelMain")
-    : document.getElementById("targetModel");
-  return el ? el.value : "nanobanana";
+  return getOptValue(mainVisible ? "targetModelMain" : "targetModel") || "nanobanana";
 }
 
 /* 读取配置：API 字段来自配置页，输出格式取当前界面 */
@@ -198,8 +260,8 @@ function fillConfigForm(cfg) {
   document.getElementById("apiKey").value = cfg.apiKey || "";
   document.getElementById("model").value = cfg.model || "";
   document.getElementById("exportDir").value = cfg.exportDir || "";
-  document.getElementById("targetModel").value = cfg.targetModel || "nanobanana";
-  document.getElementById("targetModelMain").value = cfg.targetModel || "nanobanana";
+  setOptValue("targetModel", cfg.targetModel || "nanobanana");
+  setOptValue("targetModelMain", cfg.targetModel || "nanobanana");
 }
 
 function updateCfgSummary() {
@@ -318,7 +380,7 @@ function renderHistory() {
       document.getElementById("output").value = item.result || "";
       if (item.request) document.getElementById("request").value = item.request;
       if (item.target) {
-        document.getElementById("targetModelMain").value = item.target;
+        setOptValue("targetModelMain", item.target);
         updateCfgSummary();
       }
       setStatus("已载入历史记录", "ok");
@@ -350,6 +412,7 @@ function buildFilename(target, content) {
 }
 
 async function saveAs(filename, content) {
+  if (!fs || !formats) { setStatus("当前环境不支持文件保存", "err"); return; }
   const isJson = /\.json$/.test(filename);
   const file = await fs.getFileForSaving(filename, { types: isJson ? ["json"] : ["txt"] });
   if (!file) return;
@@ -358,6 +421,7 @@ async function saveAs(filename, content) {
 }
 
 async function exportToDir() {
+  if (!fs || !formats) { setStatus("当前环境不支持直接写目录，请用「另存为…」", "err"); return; }
   const out = document.getElementById("output").value.trim();
   if (!out) { setStatus("没有可导出的内容", "err"); return; }
 
@@ -468,25 +532,20 @@ async function fetchModelsFromAPI() {
 
     if (!list.length) throw new Error("未返回任何模型");
 
-    const sel = document.getElementById("modelList");
-    while (sel.firstChild) sel.removeChild(sel.firstChild);
-
-    const ph = document.createElement("option");
-    ph.value = "";
-    ph.textContent = "— 从列表中选择模型（共 " + list.length + " 个）—";
-    sel.appendChild(ph);
-
-    list.forEach(function (id) {
-      const o = document.createElement("option");
-      o.value = id;
-      o.textContent = id;
-      sel.appendChild(o);
-    });
-    sel.classList.remove("hidden");
+    // 用选项组渲染（原生 select 在 UXP 里不可靠）
+    buildOptList(
+      "modelList",
+      list.map(function (id) { return { value: id, label: id }; }),
+      function (v) {
+        document.getElementById("model").value = v;
+        setSetupStatus("已选择模型：" + v, "ok");
+      }
+    );
+    document.getElementById("modelList").classList.remove("hidden");
 
     // 当前模型名若在列表中，自动选中
     const cur = document.getElementById("model").value.trim();
-    if (cur && list.indexOf(cur) >= 0) sel.value = cur;
+    if (cur && list.indexOf(cur) >= 0) setOptValue("modelList", cur);
 
     hint.textContent = "已拉取 " + list.length + " 个模型";
     setSetupStatus("模型列表已获取，请从下方选择", "ok");
@@ -537,30 +596,33 @@ function init() {
     showView("setup");
   }
 
-  /* ---------- 配置页：服务商预设 ---------- */
-  document.getElementById("providerPreset").addEventListener("change", function () {
-    const key = this.value;
-    const p = PROVIDERS[key];
-    if (!p) return;
-    if (key === "custom") {
-      setSetupStatus("自定义模式：请手动填写接口地址与模型名", "ok");
-      return;
-    }
-    document.getElementById("baseUrl").value = p.url;
-    document.getElementById("model").value = p.model;
-    setSetupStatus("已填入 " + this.options[this.selectedIndex].text + " 的默认配置，请补填 API Key", "ok");
-  });
+  /* ---------- 配置页：服务商预设（点击 .opt 选中） ---------- */
+  const presetOpts = document.querySelectorAll("#providerPreset .opt");
+  for (let i = 0; i < presetOpts.length; i++) {
+    presetOpts[i].addEventListener("click", function () {
+      const key = this.getAttribute("data-value") || "";
+      const p = PROVIDERS[key];
+      setOptValue("providerPreset", key);
+
+      if (!p) return;
+      if (key === "custom") {
+        setSetupStatus("自定义模式：请手动填写接口地址与模型名", "ok");
+        return;
+      }
+
+      document.getElementById("baseUrl").value = p.url;
+      document.getElementById("model").value = p.model;
+      setSetupStatus("已填入「" + this.textContent + "」的默认配置，请补填 API Key", "ok");
+
+      // 已有 API Key 则自动拉取模型列表
+      const k = document.getElementById("apiKey").value.trim();
+      if (k) setTimeout(fetchModelsFromAPI, 300);
+    });
+  }
 
   /* ---------- 配置页：拉取模型列表 ---------- */
   document.getElementById("btnFetchModels").addEventListener("click", function () {
     fetchModelsFromAPI();
-  });
-
-  // 选中的模型写回模型名输入框
-  document.getElementById("modelList").addEventListener("change", function () {
-    if (!this.value) return;
-    document.getElementById("model").value = this.value;
-    setSetupStatus("已选择模型：" + this.value, "ok");
   });
 
   // 填入 API Key 后自动拉取（失焦触发，避免每次按键都请求）
@@ -569,16 +631,9 @@ function init() {
     if (base && this.value.trim()) fetchModelsFromAPI();
   });
 
-  // 切换服务商后，若已有 Key 也自动拉取
-  document.getElementById("providerPreset").addEventListener("change", function () {
-    const key = document.getElementById("apiKey").value.trim();
-    if (key && this.value && this.value !== "custom") {
-      setTimeout(fetchModelsFromAPI, 300);
-    }
-  });
-
   /* ---------- 配置页：浏览选择导出目录 ---------- */
   document.getElementById("btnPickDir").addEventListener("click", async function () {
+    if (!fs || !fs.getFolder) { setSetupStatus("当前环境不支持目录选择，请手动输入路径", "err"); return; }
     try {
       const folder = await fs.getFolder();          // 打开系统目录选择框
       if (!folder) return;                           // 用户取消
@@ -615,12 +670,16 @@ function init() {
     setStatus("已开始新对话", "ok");
   });
 
-  document.getElementById("targetModelMain").addEventListener("change", function () {
-    const cfgNow = loadConfig();
-    cfgNow.targetModel = currentTarget();
-    localStorage.setItem(CFG_KEY, JSON.stringify(cfgNow));
-    updateCfgSummary();
-  });
+  const mainOpts = document.querySelectorAll("#targetModelMain .opt");
+  for (let i = 0; i < mainOpts.length; i++) {
+    mainOpts[i].addEventListener("click", function () {
+      setOptValue("targetModelMain", this.getAttribute("data-value") || "");
+      const cfgNow = loadConfig();
+      cfgNow.targetModel = currentTarget();
+      try { localStorage.setItem(CFG_KEY, JSON.stringify(cfgNow)); } catch (e) { /* 忽略 */ }
+      updateCfgSummary();
+    });
+  }
 
   /* ---------- 快捷填充 ---------- */
   const chips = document.querySelectorAll(".chip");
@@ -728,8 +787,8 @@ function init() {
   document.getElementById("copy").addEventListener("click", function () {
     const v = document.getElementById("output").value;
     if (!v) { setStatus("没有可复制的内容", "err"); return; }
-    clipboard.copy(v);
-    setStatus("已复制到剪贴板", "ok");
+    const ok = copyToClipboard(v);
+    setStatus(ok ? "已复制到剪贴板" : "复制失败，请手动选择文本复制", ok ? "ok" : "err");
   });
 
   document.getElementById("exportQuick").addEventListener("click", function () {
@@ -752,4 +811,26 @@ function init() {
   });
 }
 
-init();
+/* 全局错误提示：任何脚本异常都显示在面板顶部，避免"点了没反应"却查不到原因 */
+window.onerror = function (msg, src, line) {
+  try {
+    const bar = document.getElementById("errBar");
+    if (bar) {
+      bar.textContent = "脚本错误：" + msg + "（第 " + line + " 行）";
+      bar.classList.remove("hidden");
+    }
+  } catch (e) { /* 忽略 */ }
+  return false;
+};
+
+try {
+  init();
+} catch (e) {
+  try {
+    const bar = document.getElementById("errBar");
+    if (bar) {
+      bar.textContent = "初始化失败：" + (e && e.message ? e.message : String(e));
+      bar.classList.remove("hidden");
+    }
+  } catch (e2) { /* 忽略 */ }
+}

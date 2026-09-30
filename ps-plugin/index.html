@@ -5,10 +5,13 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <!-- 错误提示条（脚本异常时显示，便于排查） -->
+  <div id="errBar" class="errbar hidden"></div>
+
   <div class="app">
 
     <!-- ============================================================
-         视图 1：首次配置（登录页）
+         视图 1：首次配置
          ============================================================ -->
     <div id="viewSetup" class="view">
       <header class="hdr">
@@ -17,19 +20,18 @@
       </header>
 
       <section class="card">
-        <label class="lbl">服务商预设（选一个自动填入地址和模型名）</label>
-        <select id="providerPreset" class="inp">
-          <option value="">— 选择服务商 —</option>
-          <option value="deepseek">DeepSeek（深度求索）</option>
-          <option value="qwen">通义千问（阿里）</option>
-          <option value="kimi">Kimi / Moonshot（月之暗面）</option>
-          <option value="zhipu">智谱 GLM</option>
-          <option value="siliconflow">硅基流动 SiliconFlow</option>
-          <option value="minimax">MiniMax</option>
-          <option value="openai">OpenAI</option>
-          <option value="openrouter">OpenRouter</option>
-          <option value="custom">自定义</option>
-        </select>
+        <label class="lbl">服务商预设（点一个自动填入）</label>
+        <div id="providerPreset" class="opt-list">
+          <div class="opt" data-value="deepseek">DeepSeek</div>
+          <div class="opt" data-value="qwen">通义千问</div>
+          <div class="opt" data-value="kimi">Kimi</div>
+          <div class="opt" data-value="zhipu">智谱 GLM</div>
+          <div class="opt" data-value="siliconflow">硅基流动</div>
+          <div class="opt" data-value="minimax">MiniMax</div>
+          <div class="opt" data-value="openai">OpenAI</div>
+          <div class="opt" data-value="openrouter">OpenRouter</div>
+          <div class="opt" data-value="custom">自定义</div>
+        </div>
 
         <label class="lbl">接口地址（Base URL）</label>
         <input id="baseUrl" class="inp" placeholder="https://api.deepseek.com/v1" />
@@ -42,18 +44,16 @@
           <input id="model" class="inp" placeholder="填好 API Key 后自动拉取" />
           <button id="btnFetchModels" class="btn btn-sm">拉取模型</button>
         </div>
-        <select id="modelList" class="inp hidden">
-          <option value="">— 从列表中选择模型 —</option>
-        </select>
+        <div id="modelList" class="opt-list opt-scroll hidden"></div>
         <div id="modelHint" class="hint"></div>
 
         <label class="lbl">默认输出格式</label>
-        <select id="targetModel" class="inp">
-          <option value="nanobanana">Nano Banana（插件预设信封）</option>
-          <option value="midjourney">Midjourney（自然语言 + 参数）</option>
-          <option value="comfyui">ComfyUI / SD（tag + 权重 + 参数）</option>
-          <option value="novelai">NovelAI（Danbooru 标签）</option>
-        </select>
+        <div id="targetModel" class="opt-list">
+          <div class="opt active" data-value="nanobanana">Nano Banana</div>
+          <div class="opt" data-value="midjourney">Midjourney</div>
+          <div class="opt" data-value="comfyui">ComfyUI / SD</div>
+          <div class="opt" data-value="novelai">NovelAI</div>
+        </div>
 
         <label class="lbl">导出目录（一键导出用）</label>
         <div class="field-row">
@@ -65,7 +65,7 @@
           <div class="notice-title">安全说明</div>
           <div>· 本插件<b>不内置任何密钥</b>，必须由你填入自己的 API Key</div>
           <div>· 配置<b>只保存在你本机</b>，除你指定的接口地址外不会发往任何第三方</div>
-          <div>· 配置过一次后，下次打开直接进入主界面，无需重复填写</div>
+          <div>· 配置过一次后，下次打开直接进入主界面</div>
         </div>
       </section>
 
@@ -88,15 +88,14 @@
         </div>
       </header>
 
-      <!-- 需求输入 -->
       <section class="card">
         <label class="lbl">输出格式</label>
-        <select id="targetModelMain" class="inp">
-          <option value="nanobanana">Nano Banana（插件预设信封）</option>
-          <option value="midjourney">Midjourney（自然语言 + 参数）</option>
-          <option value="comfyui">ComfyUI / SD（tag + 权重 + 参数）</option>
-          <option value="novelai">NovelAI（Danbooru 标签）</option>
-        </select>
+        <div id="targetModelMain" class="opt-list">
+          <div class="opt active" data-value="nanobanana">Nano Banana</div>
+          <div class="opt" data-value="midjourney">Midjourney</div>
+          <div class="opt" data-value="comfyui">ComfyUI / SD</div>
+          <div class="opt" data-value="novelai">NovelAI</div>
+        </div>
 
         <label class="lbl">需求描述</label>
         <textarea id="request" class="ta ta-lg" rows="8"
@@ -118,7 +117,6 @@
         <div id="status" class="status"></div>
       </section>
 
-      <!-- 结果 + 迭代优化 -->
       <section class="card">
         <div class="card-head">
           <span>生成结果</span>
@@ -140,7 +138,6 @@
         </div>
       </section>
 
-      <!-- 历史记录 -->
       <section class="card">
         <div class="card-head">
           <span>历史记录 <span id="histCount" class="count">0</span></span>

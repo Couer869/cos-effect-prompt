@@ -11,6 +11,8 @@ html, body {
 }
 
 body {
+  display: flex;
+  flex-direction: column;
   background: #232323;
   color: #d6d6d6;
   font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
@@ -20,7 +22,8 @@ body {
 
 /* 滚动容器：整页内容在此上下滑动 */
 .app {
-  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   padding: 10px;
@@ -28,7 +31,18 @@ body {
   flex-direction: column;
   gap: 10px;
   box-sizing: border-box;
-  -webkit-overflow-scrolling: touch;
+}
+
+/* 错误提示条（脚本异常时出现） */
+.errbar {
+  flex-shrink: 0;
+  background: #4a1f1f;
+  border-bottom: 1px solid #7a2f2f;
+  color: #ffb3b3;
+  font-size: 11px;
+  padding: 6px 10px;
+  line-height: 1.5;
+  user-select: text;
 }
 
 /* 卡片不被压缩，保证可滚动 */
@@ -246,3 +260,38 @@ textarea.ta { padding: 8px; }
 .field-row { display: flex; gap: 6px; align-items: center; }
 .field-row .inp { flex: 1; min-width: 0; }
 .field-row .btn { flex-shrink: 0; white-space: nowrap; }
+
+/* ===== 选项组（替代原生 select，UXP 下 select 的 change 事件不触发）===== */
+.opt-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 2px;
+}
+.opt {
+  background: #333;
+  border: 1px solid #454545;
+  border-radius: 3px;
+  padding: 4px 9px;
+  font-size: 11px;
+  color: #b8b8b8;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.opt:hover { background: #3f3f3f; color: #e8e8e8; border-color: #5a5a5a; }
+.opt.active {
+  background: #1473e6;
+  border-color: #1473e6;
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* 可滚动的选项列表（模型列表可能很长） */
+.opt-scroll {
+  max-height: 160px;
+  overflow-y: auto;
+  border: 1px solid #3a3a3a;
+  border-radius: 3px;
+  padding: 6px;
+  background: #262626;
+}
