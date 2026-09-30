@@ -1,5 +1,5 @@
 ---
-name: COS后期提示词
+name: cos-effect-prompt
 description: >
   为 COS 照片（cosplay 角色照 / 写真）生成专业级 JSON 后期指令，可直接配合 Nano Banana
   （Gemini 图像模型）使用。用户在给自己的角色照做后期时使用——加特效（魔法阵、火焰、雷电、
