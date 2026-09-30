@@ -25,6 +25,9 @@ description: >
   负面提示词 / Midjourney / --ar / NovelAI / 二次元 tag」等**模型或参数**时，**先辨别目标模型**，
   再用该模型最合适的格式生成提示词（ComfyUI 用 tag+权重+参数，MJ 用自然语言+参数，
   NovelAI 用 Danbooru 标签）；用户没说模型时默认 Nano Banana。
+  用户要「MJ 提示词 / Midjourney 生图 / MJ 文生图」时，按内置 **MJ 提示词指南**
+  （`references/midjourney.md`：7-Element 框架 + 参数全表 + 模板 + 默认偏好 + 垃圾词黑名单 + EVA 约定）
+  输出可直接粘贴 `/imagine` 的提示词。
   用户**粘贴提示词**说「存到参考库 / 保存这个 / 我喜欢这个 / 记录一下」，或说「用参考库的 XX /
   按参考库的风格 / 参考之前存的那个」，或说「分析参考库 / 总结这些提示词」时，读取**用户参考
   提示词库**（references/user-prompts.md）：存入时做泛化分析提炼可复用要素，生成时用相关条目优化输出。
@@ -127,7 +130,7 @@ Nano Banana（Gemini 图像模型）吃的是自然语言指令，且它是语�
 输出格式随模型变化：
 - `nanobanana` → 插件预设信封（见「输出」章节）
 - `comfyui` → 正向 tag + 负向 tag + 参数（CFG / 步数 / 采样器），特效 tag 对照见 `models.md`
-- `midjourney` → 自然语言 + `--参数`（风格措辞见 `mj-style.md`）
+- `midjourney` → 自然语言 + `--参数`（**提示词写法见 `references/midjourney.md`**：7-Element 框架、参数全表、模板、默认偏好、垃圾词黑名单、EVA 约定；风格措辞见 `mj-style.md`）
 - `novelai` → Danbooru 标签
 
 > 无论哪个模型，**保底规则 / 透视一致 / 光影一致**这些视觉质量要求都适用——只是表达方式不同（ComfyUI 写进正负 tag，MJ 写进自然语言，NovelAI 写进标签）。
@@ -447,6 +450,7 @@ Nano Banana（Gemini 图像模型）吃的是自然语言指令，且它是语�
 - 库中没有的需求 → `references/fallback.md`（泛化模块：调色/背景更换/光影重塑/去路人）
 - 插件预设信封示例 → `references/preset-envelope.json`
 - 多模型适配（ComfyUI / SD / MJ / NovelAI 格式 + 辨别 + tag 对照）→ `references/models.md`
+- **Midjourney 提示词指南**（7-Element 框架 / 参数全表 / 模板 / 默认偏好 / 垃圾词 / EVA 约定）→ `references/midjourney.md`
 - MJ 风格 / 二次元 / 厚涂 / 赛博 / 电影感 → `references/mj-style.md`（风格措辞 + 参数转译 + 识别维度 + 触发词）
 - 电影风格仿制（王家卫/银翼杀手/波顿/胶片/新海诚等）→ `references/cinema-styles.md`
 - 已学习风格库（新风格入库处）→ `references/styles-learned.md`
