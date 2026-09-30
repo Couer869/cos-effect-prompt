@@ -2,7 +2,7 @@
   "manifestVersion": 5,
   "id": "com.couer869.coseffectprompt",
   "name": "COS 后期提示词生成器",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "main": "index.html",
   "host": {
     "app": "PS",

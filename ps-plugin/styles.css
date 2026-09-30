@@ -243,7 +243,40 @@ body {
   line-height: 1.6;
   font-size: 12px;
 }
-.ta.out.ta-lg { min-height: 190px; }
+
+/* 优化框：给足高度，可以一次写多条 */
+.ta-refine {
+  min-height: 96px;
+  line-height: 1.6;
+}
+
+/* ===== 生成结果展示区 =====
+ * 用 div + overflow 而非 textarea——UXP 里 textarea 滚动不可靠，
+ * 结果又是长 JSON，必须能上下滑动看到全部内容。
+ */
+.output-box {
+  min-height: 180px;
+  max-height: 440px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #1c1c1c;
+  border: 1px solid #444;
+  border-radius: 3px;
+  padding: 8px;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 11px;
+  line-height: 1.55;
+  color: #e4e4e4;
+  white-space: pre-wrap;
+  word-break: break-all;
+  user-select: text;
+  cursor: text;
+}
+.output-box.empty {
+  color: #6f6f6f;
+  font-family: inherit;
+  font-size: 12px;
+}
 
 /* ===== 整行按钮 ===== */
 .btn-block {

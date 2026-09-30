@@ -5,7 +5,7 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <!-- 错误提示条（脚本异常时显示，便于排查） -->
+  <!-- 错误提示条（脚本异常时显示） -->
   <div id="errBar" class="errbar hidden"></div>
 
   <div class="app">
@@ -83,6 +83,7 @@
           <div class="hdr-sub" id="cfgSummary">—</div>
         </div>
         <div class="hdr-actions">
+          <button id="btnKB" class="btn btn-sm btn-ghost">知识库</button>
           <button id="btnNewChat" class="btn btn-sm btn-ghost">新对话</button>
           <button id="btnSettings" class="btn btn-sm btn-ghost">设置</button>
         </div>
@@ -98,7 +99,7 @@
         </div>
 
         <label class="lbl">需求描述</label>
-        <textarea id="request" class="ta ta-lg" rows="8"
+        <textarea id="request" class="ta ta-lg" rows="7"
           placeholder="把你想做的后期处理描述清楚，例如：&#10;· 给这张 COS 照脚下加一个金色魔法阵，CG 质感，明显一点&#10;· 修脸自然一点，祛痘印和黑眼圈，头发加点亮晶晶&#10;· 背景换成赛博朋克雨夜，冷色调，霓虹灯光"></textarea>
 
         <div class="chips">
@@ -117,6 +118,7 @@
         <div id="status" class="status"></div>
       </section>
 
+      <!-- 结果：用可滚动 div 展示（textarea 在 UXP 里滚动不可靠） -->
       <section class="card">
         <div class="card-head">
           <span>生成结果</span>
@@ -126,12 +128,11 @@
             <button id="save" class="btn btn-sm btn-ghost">另存为…</button>
           </span>
         </div>
-        <textarea id="output" class="ta out ta-lg" rows="12"
-          placeholder="生成结果会显示在这里…"></textarea>
+        <div id="output" class="output-box empty">生成结果会显示在这里…</div>
 
         <label class="lbl">继续优化（基于上面的结果提新要求）</label>
-        <textarea id="refine" class="ta" rows="3"
-          placeholder="例：把魔法阵改成蓝色；强度再高一点；背景换成夜景"></textarea>
+        <textarea id="refine" class="ta ta-refine" rows="5"
+          placeholder="例：把魔法阵改成蓝色；强度再高一点；背景换成夜景&#10;可以多写几条，一次说清要改什么"></textarea>
         <div class="row">
           <button id="btnRefine" class="btn btn-primary">继续优化 →</button>
           <button id="btnRevert" class="btn btn-ghost btn-sm">撤销上一步</button>
@@ -147,6 +148,39 @@
         </div>
         <div id="historyList" class="history">
           <div class="empty">暂无记录</div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ============================================================
+         视图 3：知识库
+         ============================================================ -->
+    <div id="viewKB" class="view hidden">
+      <header class="hdr hdr-row">
+        <div class="hdr-left">
+          <div class="hdr-title">知识库</div>
+          <div class="hdr-sub">写在这里的内容会作为固定要求，每次生成自动带上</div>
+        </div>
+        <div class="hdr-actions">
+          <button id="kbBack" class="btn btn-sm btn-ghost">返回</button>
+        </div>
+      </header>
+
+      <section class="card">
+        <label class="lbl">我的偏好与固定要求</label>
+        <textarea id="kbText" class="ta ta-lg" rows="14"
+          placeholder="把你每次都要强调的要求写在这里，例如：&#10;· 人物面部特征必须保持，不要过度磨皮&#10;· 特效一律用写实 3DCG 质感&#10;· 构图必须有前景元素，不能是纯地面&#10;· 我是 COS 玩家，服装要严格还原原作设定&#10;· 输出保持中文"></textarea>
+
+        <div class="row">
+          <button id="kbSave" class="btn btn-primary">保存知识库</button>
+          <button id="kbClear" class="btn btn-ghost btn-sm">清空</button>
+        </div>
+        <div id="kbStatus" class="status"></div>
+
+        <div class="notice">
+          <div class="notice-title">说明</div>
+          <div>· 保存后，每次「生成提示词」和「继续优化」都会自动把这段内容作为固定要求发给 AI</div>
+          <div>· 内容只保存在你本机，不会上传到任何第三方</div>
         </div>
       </section>
     </div>

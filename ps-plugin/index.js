@@ -1,6 +1,6 @@
 /* COS 后期提示词生成器 — Photoshop UXP 插件
- * 多页面：① 首次配置页 → ② 生成主界面（支持多轮迭代优化）
- * 配置只存本机；配置过一次后下次直接进主界面。
+ * 视图：① 首次配置 → ② 生成主界面 → ③ 知识库
+ * 配置与知识库只存本机；配置过一次后下次直接进主界面。
  *
  * ⚠️ 安全红线（修改本文件时务必遵守，分发前请复核）：
  *   1. 【绝不内置密钥】不得在代码里写死任何 API Key / Token。Key 必须来自用户输入。
@@ -10,8 +10,7 @@
  *   4. 【分发前自检】搜索 sk- / api_key / token / Authorization，确认无硬编码凭据。
  */
 
-/* 模块加载：全部容错。
- * 关键：任何一个 require 失败都不能让整个脚本中断——否则所有按钮都会没反应。 */
+/* 模块加载全部容错：任何一个 require 失败都不能让整个脚本中断 */
 let fs = null;
 let formats = null;
 let clipboard = null;
@@ -23,23 +22,48 @@ try {
     fs = uxp.storage.localFileSystem;
     formats = uxp.storage.formats;
   }
-} catch (e) { /* 存储模块不可用：导出/另存功能降级 */ }
+} catch (e) { /* 存储不可用：导出/另存降级 */ }
 
-try { clipboard = require("clipboard"); } catch (e) { /* 剪贴板模块不可用：走 navigator 兜底 */ }
-
+try { clipboard = require("clipboard"); } catch (e) { /* 剪贴板不可用：走兜底 */ }
 try { photoshop = require("photoshop"); } catch (e) { /* 非 PS 环境 */ }
 
-/* 统一剪贴板（CEP/浏览器兜底） */
+/* 多层剪贴板兜底 —— UXP 剪贴板模块 / navigator / execCommand / 自动选中 */
 function copyToClipboard(text) {
   try {
     if (clipboard && clipboard.copy) { clipboard.copy(text); return true; }
-  } catch (e) { /* 继续兜底 */ }
+  } catch (e) { /* 继续 */ }
+
   try {
-    if (typeof navigator !== "undefined" && navigator.clipboard) {
+    if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text);
       return true;
     }
-  } catch (e) { /* 兜底失败 */ }
+  } catch (e) { /* 继续 */ }
+
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = !!(document.execCommand && document.execCommand("copy"));
+    document.body.removeChild(ta);
+    if (ok) return true;
+  } catch (e) { /* 继续 */ }
+
+  // 最后兜底：自动全选结果区，提示用户按 Ctrl+C
+  try {
+    const box = document.getElementById("output");
+    if (box && window.getSelection && document.createRange) {
+      const r = document.createRange();
+      r.selectNodeContents(box);
+      const s = window.getSelection();
+      s.removeAllRanges();
+      s.addRange(r);
+    }
+  } catch (e) { /* 忽略 */ }
+
   return false;
 }
 
@@ -146,13 +170,13 @@ Danbooru 标签，逗号分隔，可用权重。
 负面固定：lowres, bad anatomy, bad hands, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, jpeg artifacts, signature, watermark, username, blurry
 `;
 
-function buildSystemPrompt(target) {
+function buildSystemPrompt(target, kb) {
   let fmt = FORMAT_NANOBANANA;
   if (target === "midjourney") fmt = FORMAT_MJ;
   else if (target === "comfyui") fmt = FORMAT_COMFYUI;
   else if (target === "novelai") fmt = FORMAT_NOVELAI;
 
-  return SKILL_CORE + "\n" + fmt + `
+  let s = SKILL_CORE + "\n" + fmt + `
 【工作方式】
 - 用户只描述需求时：直接生成提示词，不要反问（除非完全无从下手）
 - 用户给出照片并问"这是什么风格/怎么做的/照着做"时：进入反推模式——先给 3-5 条简短分析，再给可复现的提示词
@@ -161,6 +185,17 @@ function buildSystemPrompt(target) {
 - 输出纯净可用，不要加多余的寒暄与解释
 - 只输出最终结果本身，不要包 markdown 代码块标记
 `;
+
+  // 注入用户知识库（固定要求）
+  const k = (kb || "").trim();
+  if (k) {
+    s += `
+【用户知识库 · 固定要求（每次生成都必须遵守，优先级高于上文默认值）】
+${k}
+`;
+  }
+
+  return s;
 }
 
 /* ============================================================
@@ -169,19 +204,20 @@ function buildSystemPrompt(target) {
 
 const CFG_KEY = "cos_effect_prompt_cfg_v1";
 const HISTORY_KEY = "cos_effect_prompt_history_v1";
+const KB_KEY = "cos_effect_prompt_kb_v1";
 const MAX_HISTORY = 30;
 
 /* 服务商预设：选中后自动填入接口地址与常用模型名 */
 const PROVIDERS = {
-  deepseek:    { url: "https://api.deepseek.com/v1",                                  model: "deepseek-chat" },
-  qwen:        { url: "https://dashscope.aliyuncs.com/compatible-mode/v1",             model: "qwen-plus" },
-  kimi:        { url: "https://api.moonshot.cn/v1",                                    model: "moonshot-v1-8k" },
-  zhipu:       { url: "https://open.bigmodel.cn/api/paas/v4",                          model: "glm-4-plus" },
-  siliconflow: { url: "https://api.siliconflow.cn/v1",                                 model: "deepseek-ai/DeepSeek-V3" },
-  minimax:     { url: "https://api.minimax.chat/v1",                                   model: "abab6.5s-chat" },
-  openai:      { url: "https://api.openai.com/v1",                                      model: "gpt-4o" },
-  openrouter:  { url: "https://openrouter.ai/api/v1",                                   model: "openai/gpt-4o" },
-  custom:      { url: "",                                                               model: "" }
+  deepseek:    { url: "https://api.deepseek.com/v1",                      model: "deepseek-chat" },
+  qwen:        { url: "https://dashscope.aliyuncs.com/compatible-mode/v1", model: "qwen-plus" },
+  kimi:        { url: "https://api.moonshot.cn/v1",                       model: "moonshot-v1-8k" },
+  zhipu:       { url: "https://open.bigmodel.cn/api/paas/v4",             model: "glm-4-plus" },
+  siliconflow: { url: "https://api.siliconflow.cn/v1",                    model: "deepseek-ai/DeepSeek-V3" },
+  minimax:     { url: "https://api.minimax.chat/v1",                      model: "abab6.5s-chat" },
+  openai:      { url: "https://api.openai.com/v1",                        model: "gpt-4o" },
+  openrouter:  { url: "https://openrouter.ai/api/v1",                     model: "openai/gpt-4o" },
+  custom:      { url: "",                                                 model: "" }
 };
 
 function loadConfig() {
@@ -198,10 +234,17 @@ function isConfigured(cfg) {
   return !!(cfg && cfg.baseUrl && cfg.apiKey && cfg.model);
 }
 
-/* ---------- 通用：选项组控件 ----------
- * UXP 对原生 <select> 支持不可靠（change 事件不触发），因此用
- * 「容器 + .opt 子项 + active 类」实现下拉，点击即选中。
- */
+function loadKB() {
+  try { return localStorage.getItem(KB_KEY) || ""; }
+  catch (e) { return ""; }
+}
+
+function saveKB(text) {
+  try { localStorage.setItem(KB_KEY, text || ""); return true; }
+  catch (e) { return false; }
+}
+
+/* ---------- 通用：选项组控件（UXP 下原生 select 不可靠） ---------- */
 function getOptValue(id) {
   const el = document.getElementById(id);
   if (!el) return "";
@@ -238,13 +281,11 @@ function buildOptList(containerId, items, onPick) {
   });
 }
 
-/* 当前应使用的输出格式（主界面优先） */
 function currentTarget() {
   const mainVisible = !document.getElementById("viewMain").classList.contains("hidden");
   return getOptValue(mainVisible ? "targetModelMain" : "targetModel") || "nanobanana";
 }
 
-/* 读取配置：API 字段来自配置页，输出格式取当前界面 */
 function readConfig() {
   return {
     baseUrl: document.getElementById("baseUrl").value.trim(),
@@ -268,29 +309,49 @@ function updateCfgSummary() {
   const cfg = loadConfig();
   const names = { nanobanana: "Nano Banana", midjourney: "Midjourney", comfyui: "ComfyUI", novelai: "NovelAI" };
   const t = currentTarget();
+  const kb = loadKB().trim();
   document.getElementById("cfgSummary").textContent =
-    (cfg.model || "未配置模型") + " · " + (names[t] || t);
+    (cfg.model || "未配置模型") + " · " + (names[t] || t) + (kb ? " · 知识库已启用" : "");
 }
 
 /* ============================================================
- * 三、视图切换
+ * 三、输出区（div 展示，支持滚动）
+ * ============================================================ */
+
+let currentOutput = "";
+
+function setOutput(text) {
+  currentOutput = text || "";
+  const el = document.getElementById("output");
+  if (!el) return;
+  el.textContent = currentOutput;
+  if (currentOutput) el.classList.remove("empty");
+  else el.classList.add("empty");
+}
+
+function getOutput() { return currentOutput; }
+
+/* ============================================================
+ * 四、视图切换
  * ============================================================ */
 
 function showView(name) {
-  const setup = document.getElementById("viewSetup");
-  const main = document.getElementById("viewMain");
-  if (name === "main") {
-    setup.classList.add("hidden");
-    main.classList.remove("hidden");
-    updateCfgSummary();
-  } else {
-    main.classList.add("hidden");
-    setup.classList.remove("hidden");
+  const views = ["viewSetup", "viewMain", "viewKB"];
+  views.forEach(function (id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (id === name) el.classList.remove("hidden");
+    else el.classList.add("hidden");
+  });
+  if (name === "viewMain") updateCfgSummary();
+  if (name === "viewKB") {
+    document.getElementById("kbText").value = loadKB();
+    setKbStatus(loadKB().trim() ? "知识库已保存内容" : "知识库为空", "ok");
   }
 }
 
 /* ============================================================
- * 四、历史记录
+ * 五、历史记录
  * ============================================================ */
 
 function labelOf(target) {
@@ -377,7 +438,7 @@ function renderHistory() {
     row.appendChild(del);
 
     row.addEventListener("click", function () {
-      document.getElementById("output").value = item.result || "";
+      setOutput(item.result || "");
       if (item.request) document.getElementById("request").value = item.request;
       if (item.target) {
         setOptValue("targetModelMain", item.target);
@@ -391,7 +452,7 @@ function renderHistory() {
 }
 
 /* ============================================================
- * 五、文件导出
+ * 六、文件导出
  * ============================================================ */
 
 function buildFilename(target, content) {
@@ -422,7 +483,7 @@ async function saveAs(filename, content) {
 
 async function exportToDir() {
   if (!fs || !formats) { setStatus("当前环境不支持直接写目录，请用「另存为…」", "err"); return; }
-  const out = document.getElementById("output").value.trim();
+  const out = getOutput().trim();
   if (!out) { setStatus("没有可导出的内容", "err"); return; }
 
   const cfg = loadConfig();
@@ -444,51 +505,6 @@ async function exportToDir() {
   } catch (e) {
     setStatus("导出失败：" + e.message + "（请检查导出目录是否存在）", "err");
   }
-}
-
-/* ============================================================
- * 六、调用 API（支持多轮对话）
- * ============================================================ */
-
-let messages = [];      // 对话历史（不含 system），用于多轮迭代
-let outputStack = [];   // 每轮结果，用于撤销
-
-async function callLLM(cfg, msgs) {
-  const base = cfg.baseUrl.replace(/\/+$/, "");
-  const url = /\/chat\/completions$/.test(base) ? base : base + "/chat/completions";
-
-  const body = {
-    model: cfg.model,
-    messages: [{ role: "system", content: buildSystemPrompt(cfg.targetModel) }].concat(msgs),
-    temperature: 0.7,
-    stream: false
-  };
-
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer " + cfg.apiKey
-    },
-    body: JSON.stringify(body)
-  });
-
-  const raw = await res.text();
-  let data;
-  try { data = JSON.parse(raw); }
-  catch (e) { throw new Error("返回非 JSON：" + raw.slice(0, 200)); }
-
-  if (!res.ok) {
-    const msg = (data && data.error && (data.error.message || data.error.code)) || res.status;
-    throw new Error("API 错误 " + res.status + "：" + msg);
-  }
-
-  const text =
-    (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) ||
-    (data.choices && data.choices[0] && data.choices[0].text) || "";
-
-  if (!text) throw new Error("返回内容为空");
-  return text.trim();
 }
 
 /* ============================================================
@@ -532,7 +548,6 @@ async function fetchModelsFromAPI() {
 
     if (!list.length) throw new Error("未返回任何模型");
 
-    // 用选项组渲染（原生 select 在 UXP 里不可靠）
     buildOptList(
       "modelList",
       list.map(function (id) { return { value: id, label: id }; }),
@@ -543,7 +558,6 @@ async function fetchModelsFromAPI() {
     );
     document.getElementById("modelList").classList.remove("hidden");
 
-    // 当前模型名若在列表中，自动选中
     const cur = document.getElementById("model").value.trim();
     if (cur && list.indexOf(cur) >= 0) setOptValue("modelList", cur);
 
@@ -559,7 +573,52 @@ async function fetchModelsFromAPI() {
 }
 
 /* ============================================================
- * 八、界面交互
+ * 八、调用 API（支持多轮对话）
+ * ============================================================ */
+
+let messages = [];      // 对话历史（不含 system）
+let outputStack = [];   // 每轮结果，用于撤销
+
+async function callLLM(cfg, msgs) {
+  const base = cfg.baseUrl.replace(/\/+$/, "");
+  const url = /\/chat\/completions$/.test(base) ? base : base + "/chat/completions";
+
+  const body = {
+    model: cfg.model,
+    messages: [{ role: "system", content: buildSystemPrompt(cfg.targetModel, loadKB()) }].concat(msgs),
+    temperature: 0.7,
+    stream: false
+  };
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": "Bearer " + cfg.apiKey
+    },
+    body: JSON.stringify(body)
+  });
+
+  const raw = await res.text();
+  let data;
+  try { data = JSON.parse(raw); }
+  catch (e) { throw new Error("返回非 JSON：" + raw.slice(0, 200)); }
+
+  if (!res.ok) {
+    const msg = (data && data.error && (data.error.message || data.error.code)) || res.status;
+    throw new Error("API 错误 " + res.status + "：" + msg);
+  }
+
+  const text =
+    (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) ||
+    (data.choices && data.choices[0] && data.choices[0].text) || "";
+
+  if (!text) throw new Error("返回内容为空");
+  return text.trim();
+}
+
+/* ============================================================
+ * 九、界面交互
  * ============================================================ */
 
 function setStatus(msg, cls) {
@@ -574,13 +633,19 @@ function setSetupStatus(msg, cls) {
   el.className = "status" + (cls ? " " + cls : "");
 }
 
+function setKbStatus(msg, cls) {
+  const el = document.getElementById("kbStatus");
+  el.textContent = msg || "";
+  el.className = "status" + (cls ? " " + cls : "");
+}
+
 function resetConversation(clearText) {
   messages = [];
   outputStack = [];
   if (clearText !== false) {
     document.getElementById("request").value = "";
-    document.getElementById("output").value = "";
     document.getElementById("refine").value = "";
+    setOutput("");
   }
 }
 
@@ -589,14 +654,10 @@ function init() {
   fillConfigForm(cfg);
   renderHistory();
 
-  // 已配置过 → 直接进主界面
-  if (isConfigured(cfg)) {
-    showView("main");
-  } else {
-    showView("setup");
-  }
+  if (isConfigured(cfg)) showView("viewMain");
+  else showView("viewSetup");
 
-  /* ---------- 配置页：服务商预设（点击 .opt 选中） ---------- */
+  /* ---------- 配置页：服务商预设 ---------- */
   const presetOpts = document.querySelectorAll("#providerPreset .opt");
   for (let i = 0; i < presetOpts.length; i++) {
     presetOpts[i].addEventListener("click", function () {
@@ -614,29 +675,27 @@ function init() {
       document.getElementById("model").value = p.model;
       setSetupStatus("已填入「" + this.textContent + "」的默认配置，请补填 API Key", "ok");
 
-      // 已有 API Key 则自动拉取模型列表
       const k = document.getElementById("apiKey").value.trim();
       if (k) setTimeout(fetchModelsFromAPI, 300);
     });
   }
 
-  /* ---------- 配置页：拉取模型列表 ---------- */
+  /* ---------- 配置页：拉取模型 ---------- */
   document.getElementById("btnFetchModels").addEventListener("click", function () {
     fetchModelsFromAPI();
   });
 
-  // 填入 API Key 后自动拉取（失焦触发，避免每次按键都请求）
   document.getElementById("apiKey").addEventListener("change", function () {
     const base = document.getElementById("baseUrl").value.trim();
     if (base && this.value.trim()) fetchModelsFromAPI();
   });
 
-  /* ---------- 配置页：浏览选择导出目录 ---------- */
+  /* ---------- 配置页：浏览目录 ---------- */
   document.getElementById("btnPickDir").addEventListener("click", async function () {
     if (!fs || !fs.getFolder) { setSetupStatus("当前环境不支持目录选择，请手动输入路径", "err"); return; }
     try {
-      const folder = await fs.getFolder();          // 打开系统目录选择框
-      if (!folder) return;                           // 用户取消
+      const folder = await fs.getFolder();
+      if (!folder) return;
       const p = (folder.nativePath || "").replace(/\\/g, "/");
       document.getElementById("exportDir").value = p;
       setSetupStatus("已选择导出目录：" + p, "ok");
@@ -645,7 +704,7 @@ function init() {
     }
   });
 
-  /* ---------- 配置页 ---------- */
+  /* ---------- 配置页：保存并进入 ---------- */
   document.getElementById("btnEnter").addEventListener("click", function () {
     const cfgNew = readConfig();
     if (!cfgNew.baseUrl || !cfgNew.apiKey || !cfgNew.model) {
@@ -654,15 +713,19 @@ function init() {
     }
     saveConfig(cfgNew);
     setSetupStatus("");
-    showView("main");
+    showView("viewMain");
     setStatus("配置已保存，可以开始生成了", "ok");
   });
 
   /* ---------- 主界面顶部 ---------- */
   document.getElementById("btnSettings").addEventListener("click", function () {
     fillConfigForm(loadConfig());
-    showView("setup");
+    showView("viewSetup");
     setSetupStatus("修改后点「保存并进入」", "ok");
+  });
+
+  document.getElementById("btnKB").addEventListener("click", function () {
+    showView("viewKB");
   });
 
   document.getElementById("btnNewChat").addEventListener("click", function () {
@@ -680,6 +743,29 @@ function init() {
       updateCfgSummary();
     });
   }
+
+  /* ---------- 知识库 ---------- */
+  document.getElementById("kbBack").addEventListener("click", function () {
+    const kb = document.getElementById("kbText").value;
+    saveKB(kb);
+    showView("viewMain");
+    setStatus(kb.trim() ? "知识库已生效，生成时会自动带上" : "知识库为空", "ok");
+  });
+
+  document.getElementById("kbSave").addEventListener("click", function () {
+    const kb = document.getElementById("kbText").value;
+    if (saveKB(kb)) {
+      setKbStatus("已保存（" + kb.trim().length + " 字），生成时会自动带上", "ok");
+    } else {
+      setKbStatus("保存失败：本地存储不可用", "err");
+    }
+  });
+
+  document.getElementById("kbClear").addEventListener("click", function () {
+    document.getElementById("kbText").value = "";
+    saveKB("");
+    setKbStatus("已清空知识库", "ok");
+  });
 
   /* ---------- 快捷填充 ---------- */
   const chips = document.querySelectorAll(".chip");
@@ -721,7 +807,6 @@ function init() {
       return;
     }
 
-    // 首次生成 = 开新对话
     messages = [{ role: "user", content: req }];
 
     const btn = document.getElementById("gen");
@@ -732,7 +817,7 @@ function init() {
       const out = await callLLM(cfgNow, messages);
       messages.push({ role: "assistant", content: out });
       outputStack = [out];
-      document.getElementById("output").value = out;
+      setOutput(out);
       addHistory({ time: nowStr(), target: currentTarget(), request: req, result: out });
       setStatus("生成完成", "ok");
     } catch (e) {
@@ -762,41 +847,43 @@ function init() {
       const out = await callLLM(cfgNow, messages);
       messages.push({ role: "assistant", content: out });
       outputStack.push(out);
-      document.getElementById("output").value = out;
+      setOutput(out);
       document.getElementById("refine").value = "";
       addHistory({ time: nowStr(), target: currentTarget(), request: "【优化】" + t, result: out });
       setStatus("已更新（第 " + outputStack.length + " 版）", "ok");
     } catch (e) {
-      messages.pop(); // 失败则回退这条，保持历史干净
+      messages.pop();
       setStatus("优化失败：" + e.message, "err");
     } finally {
       btn.disabled = false;
     }
   });
 
-  /* ---------- 撤销上一步 ---------- */
+  /* ---------- 撤销 ---------- */
   document.getElementById("btnRevert").addEventListener("click", function () {
     if (outputStack.length <= 1) { setStatus("没有可撤销的步骤", "err"); return; }
     outputStack.pop();
     messages = messages.slice(0, -2);
-    document.getElementById("output").value = outputStack[outputStack.length - 1];
+    setOutput(outputStack[outputStack.length - 1]);
     setStatus("已撤销，回到第 " + outputStack.length + " 版", "ok");
   });
 
-  /* ---------- 复制 / 导出 / 另存 ---------- */
+  /* ---------- 复制（多层兜底）---------- */
   document.getElementById("copy").addEventListener("click", function () {
-    const v = document.getElementById("output").value;
+    const v = getOutput();
     if (!v) { setStatus("没有可复制的内容", "err"); return; }
     const ok = copyToClipboard(v);
-    setStatus(ok ? "已复制到剪贴板" : "复制失败，请手动选择文本复制", ok ? "ok" : "err");
+    if (ok) setStatus("已复制到剪贴板", "ok");
+    else setStatus("已选中内容，请按 Ctrl+C 复制", "err");
   });
 
+  /* ---------- 导出 / 另存 ---------- */
   document.getElementById("exportQuick").addEventListener("click", function () {
     exportToDir();
   });
 
   document.getElementById("save").addEventListener("click", function () {
-    const v = document.getElementById("output").value.trim();
+    const v = getOutput().trim();
     if (!v) { setStatus("没有可保存的内容", "err"); return; }
     saveAs(buildFilename(currentTarget(), v), v).catch(function (e) {
       setStatus("保存失败：" + e.message, "err");
@@ -811,7 +898,7 @@ function init() {
   });
 }
 
-/* 全局错误提示：任何脚本异常都显示在面板顶部，避免"点了没反应"却查不到原因 */
+/* 全局错误提示：任何脚本异常都显示在面板顶部 */
 window.onerror = function (msg, src, line) {
   try {
     const bar = document.getElementById("errBar");
