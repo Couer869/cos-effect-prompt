@@ -576,6 +576,18 @@ async function fetchModelsFromAPI() {
     return;
   }
 
+  let parsedBase;
+  try {
+    parsedBase = new URL(base);
+  } catch (e) {
+    setSetupStatus("接口地址无效，请填写合法的 http/https 地址", "err");
+    return;
+  }
+  if (parsedBase.protocol !== "http:" && parsedBase.protocol !== "https:") {
+    setSetupStatus("接口地址协议不受支持，仅支持 http/https", "err");
+    return;
+  }
+
   const btn = document.getElementById("btnFetchModels");
   btn.disabled = true;
   hint.textContent = "正在拉取模型列表…";
